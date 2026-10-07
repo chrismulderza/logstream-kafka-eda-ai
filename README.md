@@ -1,54 +1,108 @@
-# Event-Driven Telemetry and Ansible EDA
+# Logstream Kafka EDA
 
-This repository is an **administrator implementation pack**: a chaptered deployment book plus the OpenShift, Ansible, optional worker, Grafana, and SIEM artifacts the book tells you to apply.
+Ship RHEL system logs into Kafka on OpenShift, keep your existing ArcSight path, and automate responses with Event-Driven Ansible — without guessing at remediations.
 
-The **required** path is RHEL syslog (kept on ArcSight, added to Kafka) and **Event-Driven Ansible** matching ten operational and security events. Predictive analytics is optional.
+This repository is an **administrator pack**: a step-by-step deployment guide plus the OpenShift manifests, Ansible roles, rulebooks, playbooks, and validation scripts you apply to an estate you already run. It does **not** create an OpenShift cluster for you.
 
-It does **not** provision an OpenShift cluster. You apply these files to a cluster and RHEL estate you already operate.
+**Published guide:** [chrismulderza.github.io/logstream-kafka-eda-ai](https://chrismulderza.github.io/logstream-kafka-eda-ai/)
 
-## Read the book
+## What problem this solves
+
+Many RHEL fleets already forward syslog to ArcSight. You often also want those same events in Kafka so automation and SIEM tools can react in parallel — without ripping out ArcSight or turning every noisy log line into a destructive playbook.
+
+This pack gives you:
+
+1. **Dual-home rsyslog** — add Kafka (`omkafka`) while ArcSight `omfwd` / `omrelp` stays untouched.
+2. **KRaft Kafka on OpenShift** — Streams for Apache Kafka topics and listeners you can point producers and consumers at.
+3. **Event-Driven Ansible on ten high-value syslog patterns** — OOM, SSH brute force, sudo failures, SELinux AVCs, systemd failures, disk I/O errors, account changes, kernel panic / MCE, link down, and package installs.
+4. **Fail-closed remediations** — by default playbooks diagnose or notify; firewall bans, restarts, IPMI, and similar actions stay off until you opt in.
+5. **Optional predictive disk alerts** — a stream worker that computes time-to-exhaustion from PCP metrics and can call an OpenAI-compatible LLM. Skip it if you only care about log-driven EDA.
+
+## How the pipeline fits together
+
+```text
+RHEL hosts
+  ├── rsyslog ──► ArcSight          (existing, unchanged)
+  ├── rsyslog ──► Kafka             (rhel-system-logs)
+  └── PCP ──────► Kafka             (rhel-pcp-metrics, optional)
+
+Kafka
+  ├── Event-Driven Ansible          (group: ansible-eda)
+  ├── SIEM (Logstash / Splunk)      (groups: siem-logstash, siem-splunk)
+  └── Optional stream worker        (group: stream-worker → enriched-events)
+```
+
+Consumer groups are exclusive. Sharing `ansible-eda` with SIEM or the worker will steal partitions and drop events.
+
+## Who should use this
+
+Platform, logging, and automation administrators who operate:
+
+- OpenShift **4.20–4.21**
+- RHEL **8.10 / 9** endpoints
+- Ansible Automation Platform **2.6** Event-Driven Ansible (or **2.5** only on OCP 4.20), **or** `ansible-rulebook` on a jump host
+
+You should be comfortable applying Operator manifests, running Ansible against RHEL, and validating with `oc` / `kcat` / `logger`.
+
+## What’s in the repository
+
+| Path | Purpose |
+| --- | --- |
+| [`docs/`](docs/) | MkDocs deployment book (architecture through SIEM) |
+| [`openshift/kafka/`](openshift/kafka/) | Namespace, Streams operator, KRaft node pools, Kafka cluster, topics |
+| [`ansible/telemetry/`](ansible/telemetry/) | Role that adds `omkafka` + PCP exporters; never replaces ArcSight drop-ins |
+| [`ansible/eda/`](ansible/eda/) | Rulebooks, gated playbooks, EE definition, example inventory and extra vars |
+| [`extensions/eda/rulebooks/`](extensions/eda/rulebooks/) | AAP-scanned copies of the AAP rulebooks |
+| [`worker/`](worker/) + [`openshift/worker/`](openshift/worker/) | Optional predictive AI stream worker |
+| [`scripts/`](scripts/) | Synthetic OOM inject, storage-fill test, pipeline checks |
+| [`siem/`](siem/) + [`grafana/`](grafana/) | Parallel SIEM consumers and Grafana dashboards |
+
+## Read the guide
 
 | Format | How |
 | --- | --- |
-| Git markdown | Start at [docs/index.md](docs/index.md) |
-| GitHub Pages | https://chrismulderza.github.io/logstream-kafka-eda-ai/ (built from `main` by `.github/workflows/docs.yml`) |
-| Local MkDocs | `pip install -r docs/requirements-docs.txt && mkdocs serve` then open `http://127.0.0.1:8000` |
+| GitHub Pages | https://chrismulderza.github.io/logstream-kafka-eda-ai/ |
+| Markdown in Git | Start at [`docs/index.md`](docs/index.md) |
+| Local preview | `pip install -r docs/requirements-docs.txt && mkdocs serve` → http://127.0.0.1:8000 |
 
-## Apply order
+Suggested reading order:
 
-Follow the chapters in order unless you already have a KRaft Kafka cluster that matches the topic and listener contracts in [docs/01-architecture.md](docs/01-architecture.md).
+1. [Architecture](docs/01-architecture.md) — topics, listeners, consumer groups
+2. [Prerequisites](docs/02-prerequisites.md) — versions, network, TLS, SELinux
+3. [Kafka on OpenShift](docs/03-kafka-openshift.md)
+4. [RHEL telemetry](docs/04-rhel-telemetry.md) — keep ArcSight; add Kafka
+5. [Event-Driven Ansible](docs/05-event-driven-ansible.md) — the ten-event catalog
+6. [Optional predictive worker](docs/06-optional-predictive-ai-worker.md) — only if you need PCP TTE
+7. [Validation](docs/07-validation-runbook.md) and [SIEM / Grafana](docs/08-siem-dashboards.md)
 
-1. [Prerequisites](docs/02-prerequisites.md) — versions, ports, TLS, SELinux, RBAC
-2. [Kafka on OpenShift (KRaft)](docs/03-kafka-openshift.md) — `openshift/kafka/`
-3. [RHEL host telemetry](docs/04-rhel-telemetry.md) — `ansible/telemetry/` (adds Kafka; keeps ArcSight rsyslog)
-4. [Event-Driven Ansible](docs/05-event-driven-ansible.md) — `ansible/eda/` (ten syslog events)
-5. [Optional predictive AI stream worker](docs/06-optional-predictive-ai-worker.md) — `worker/` and `openshift/worker/`
-6. [Validation](docs/07-validation-runbook.md) — `scripts/`
-7. [SIEM and Grafana](docs/08-siem-dashboards.md) — `siem/` and `grafana/`
+## Default names (keep them consistent)
 
-## Shared identifiers
-
-Use these names everywhere unless you change them in **all** manifests, playbooks, and consumer groups:
+Changing a name means updating every producer and consumer that uses it.
 
 | Object | Value |
 | --- | --- |
-| OpenShift namespace | `logstream-kafka` |
+| Namespace | `logstream-kafka` |
 | Kafka cluster | `telemetry` |
 | Internal bootstrap | `telemetry-kafka-plain-bootstrap.logstream-kafka.svc:9092` |
-| External listener | Route TLS `tls-external` (client port **443** on the Route) |
+| External listener | Route TLS `tls-external` (clients use port **443**) |
 | Topics | `rhel-system-logs`, `rhel-pcp-metrics`, `raw-metrics`, `enriched-events` |
-| Worker group | `stream-worker` (only if chapter 6 is deployed) |
 | EDA group | `ansible-eda` |
 | SIEM groups | `siem-logstash`, `siem-splunk` |
-| Optional predictive alert type | `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` |
+| Worker group | `stream-worker` (only if chapter 6 is deployed) |
 
-## Decision matrices (no single default)
+## Safety model
 
-- **EDA runtime:** Ansible Automation Platform 2.6 (2.5 only on OCP 4.20) Event-Driven Ansible, or `ansible-rulebook` CLI — see [chapter 5](docs/05-event-driven-ansible.md).
-- **Inference (optional):** vLLM, Red Hat OpenShift AI (OpenAI-compatible), or an external OpenAI-compatible API — see [chapter 6](docs/06-optional-predictive-ai-worker.md).
+Destructive actions are **off by default**. Extra vars such as `allow_firewall_ban`, `allow_service_restart`, `allow_ipmi_reboot`, `allow_lb_isolate`, `allow_podman_prune`, and `allow_lvextend` must be set explicitly, and you should restart the EDA activation or CLI process after changing them.
 
-Destructive remediations (firewall bans, service restarts, IPMI, `podman system prune`, `lvextend`) default to **off**.
+Open gates only in a change window, on a limited inventory, after the validation chapter passes.
 
-## Research note
+## Runtime choices
 
-[plan.md](plan.md) is the original research brief. Where current Red Hat documentation differs (especially Streams for Apache Kafka **3.x** KRaft-only and SELinux for `omkafka`), the book and artifacts follow current practice.
+There is no single prescribed stack beyond Kafka + dual-home syslog + EDA:
+
+- **EDA:** AAP Event-Driven Ansible activations, or `ansible-rulebook` CLI — same playbooks, different control plane ([chapter 5](docs/05-event-driven-ansible.md)).
+- **Inference (optional):** none, vLLM, OpenShift AI, or an external OpenAI-compatible API ([chapter 6](docs/06-optional-predictive-ai-worker.md)).
+
+## Note on `plan.md`
+
+[`plan.md`](plan.md) is the original research brief that shaped this pack. Where current Red Hat docs differ (especially Streams for Apache Kafka 3.x KRaft-only and SELinux for `omkafka`), the book and artifacts follow current practice.
