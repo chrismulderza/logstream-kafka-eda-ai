@@ -54,6 +54,7 @@ openssl x509 -in ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.p
 | [`ansible/telemetry/roles/rhel_telemetry/tasks/`](../ansible/telemetry/roles/rhel_telemetry/tasks/) | Packages, CA, SELinux, firewall, rsyslog, PCP |
 | [`ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2) | Extra `omkafka` destination; does not replace ArcSight |
 | [`ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2) | `pcp2json` piped to `kcat`, `RestartSec=5s` |
+| [`ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) | Hot-process RSS floor for `pmdaproc` |
 | [`ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te`](../ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te) | Targeted SELinux module (connect to port 443) |
 | [`ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.pem.example`](../ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.pem.example) | Placeholder; replace with real PEM |
 
@@ -146,6 +147,9 @@ Set at least:
 | `rsyslog_kafka_conf` | `/etc/rsyslog.d/05-omkafka-additional.conf` | Additive drop-in only |
 | `rsyslog_fail_on_early_stop` | `true` | Fail if a `stop` rule would skip Kafka |
 | `pcp_interval` | `15s` | `pcp2json -t` sampling interval |
+| `pcp2json_names_change` | `update` | `pcp2json -4`. Follows processes that cross the hotproc floor after `pcp2kafka` starts |
+| `hotproc_predicate` | `residentsize > 102400` | Kilobytes (about 100 MB). Written to `hotproc.conf` |
+| `hotproc_conf_path` | `/var/lib/pcp/pmdas/proc/hotproc.conf` | Predicate file for the `proc` PMDA |
 
 You can override on the command line instead of editing `group_vars/all.yml`:
 
@@ -231,11 +235,13 @@ A previous pack filename `/etc/rsyslog.d/10-kafka.conf` is removed if present so
 
 [`pcp2kafka.service.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2) installs `/etc/systemd/system/pcp2kafka.service`:
 
-- `pcp2json -t <pcp_interval>` piped to `kcat -P` on topic `rhel-pcp-metrics`.
+- `pcp2json -t <pcp_interval> -4 update` piped to `kcat -P` on topic `rhel-pcp-metrics`. `-4 update` refreshes the instance list when a process crosses the hotproc floor after the unit has started.
 - TLS: `-X security.protocol=ssl -X ssl.ca.location=<kafka_ca_path>`.
-- Metrics: filesystem used/capacity, memory, CPU idle/user/sys/wait.
+- Metrics: filesystem used/capacity, host memory, CPU idle/user/sys/wait, plus `hotproc.psinfo.rss` and `hotproc.psinfo.cmd`.
 - `Restart=always`, `RestartSec=5s`.
 - `Requires=pmcd.service`.
+
+[`hotproc.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) writes `hotproc_conf_path` (default `/var/lib/pcp/pmdas/proc/hotproc.conf`) and reloads it with `pmstore hotproc.control.reload_config 1`. The `proc` PMDA already ships in `pcp-system-tools`. The predicate `residentsize > 102400` keeps processes at or above about 100 MB. `hotproc.psinfo.rss` and `mem.util.free` are both kilobytes. The unfiltered `proc.psinfo.rss` series is not exported. No process above the floor means an empty hotproc instance domain, which is a successful onboard. If `group_vars/all.yml` sets `pcp_metrics`, include `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` in that list. A copied group_vars file replaces the role default. These series are the input for the process-growth pattern in [chapter 6](06-optional-predictive-ai-worker.md#611-further-preemptive-patterns). The predictive worker does not yet emit that alert.
 
 ### firewalld
 
@@ -337,7 +343,7 @@ kcat -C -e -o -1 \
   -X ssl.ca.location="${CA}"
 ```
 
-Expected: JSON from `pcp2json` including filesystem/memory/CPU names from `pcp_metrics`. If empty, `journalctl -u pcp2kafka -n 80` and confirm `kcat` is on `PATH` as installed by the role.
+Expected: JSON from `pcp2json` including filesystem, host memory, and CPU names from `pcp_metrics`. `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` appear for processes at or above `hotproc_predicate`. If the topic is empty, `journalctl -u pcp2kafka -n 80` and confirm `kcat` is on `PATH` as installed by the role.
 
 Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for these checks (see [chapter 7](07-validation-runbook.md)).
 
@@ -353,6 +359,8 @@ Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for
 | Kafka empty but ArcSight works | Early `stop`/`& ~` before the `05-` drop-in | See [Preserve ArcSight](#preserve-arcsight-forwarding) |
 | `pcp2kafka` crash loop | `kcat` missing | EPEL/pip fallback or internal `kcat` package |
 | Empty `rhel-pcp-metrics` | `pmcd` down or metric names | `systemctl status pmcd`; `pminfo filesys.used mem.physmem` |
+| `hotproc.psinfo.rss` missing | Predicate not loaded | `pminfo -f hotproc.control.config`; rerun onboard so `hotproc.conf` is installed and `pmstore` reloads it |
+| `hotproc.psinfo.rss` has no instances | No process at or above the RSS floor | Expected. Lower `hotproc_predicate` only when you need smaller processes |
 | firewalld dropped remote PCP | Ports closed | `-e pcp_expose_remote=true` or do not collect PCP remotely |
 
 ## Next

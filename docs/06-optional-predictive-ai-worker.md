@@ -41,6 +41,60 @@ If `INFERENCE_BASE_URL` is unset (omit the env var; do not set it to `""`), log 
 
 Implementation lives under `worker/src/main/java/ai/logstream/worker/` (`predict`, `process`, `parse`, `infer`, `messaging`).
 
+### 6.1.1 Further preemptive patterns
+
+Filesystem-byte TTE is the only detector this worker implements. The four patterns below use the same shape: a positive slope (or a rising hardware-error rate) on one stream, a second signal on the same host, then one stable `alert_type` on `enriched-events`. Event-Driven Ansible matches that string and runs a fail-closed playbook. Inference text stays optional and does not decide the alert.
+
+Correlation belongs in a worker on group `stream-worker`. That consumer may also read `rhel-system-logs` without taking group `ansible-eda`. When the hard-failure string is already in the log, leave the event to the matching rule in [ansible/eda/rulebook.yml](../ansible/eda/rulebook.yml).
+
+```mermaid
+flowchart LR
+  metrics[rhel-pcp-metrics]
+  logs[rhel-system-logs]
+  worker[stream-worker]
+  enriched[enriched-events]
+  eda[EDA match on alert_type]
+  metrics --> worker
+  logs --> worker
+  worker --> enriched
+  enriched --> eda
+```
+
+Shared forecast, same as filesystem bytes:
+
+```text
+TTE = (Capacity - Used_current) / (ΔUsed / Δt)
+```
+
+If the rate is zero or negative (usage is flat or shrinking), do not emit an exhaustion alert.
+
+**Memory pressure before the OOM killer.** The catalog reacts to `Out of memory: Kill process`, which is after a process is already dead. `mem.util.free` and `mem.physmem` are already on `rhel-pcp-metrics`. Forecast:
+
+```text
+TTE = mem.util.free / (Δused / Δt)
+```
+
+`Δused / Δt` is the slope of `mem.physmem - mem.util.free`. Require a leading log on that host in the same window: `page allocation failure` or systemd `Under memory pressure`. Free memory also falls when the page cache grows; the log is what shows the shortage is not reclaimable cache. Skip the alert when the message already contains `Out of memory: Kill process` (rule “Kernel OOM killer”, [playbooks/remediate_oom.yml](../ansible/eda/playbooks/remediate_oom.yml)). Alert type: `PREEMPTIVE_MEMORY_EXHAUSTION_RISK`. The playbook collects `ps`, cgroup memory, and the pressure line. Leave `allow_service_restart` and `allow_drop_caches` false. When one process explains the slope, the next pattern names it. This alert stays the host-level signal.
+
+**A process leaking or growing quickly.** The host-level forecast does not name a process. The OOM line names the victim only after the kernel has killed it. Key a rolling window on `(host, pid)` and apply the same slope to that process's resident set, against remaining RAM:
+
+```text
+TTE = mem.util.free / (ΔRSS / Δt)
+```
+
+`ΔRSS / Δt` is the least-squares slope of resident set. A zero or negative slope does not emit. If `hotproc.psinfo.cmd` for that pid changes, drop the series (the pid was reused).
+
+Two deterministic reasons share one alert type:
+
+- **Leak.** The slope stays positive for the full window (same minimum sample count as filesystem TTE), TTE is inside the horizon, and this process accounts for most of the host's rise in used memory. A cache warmup that flattens loses the positive slope and does not alert.
+- **Rapid growth.** RSS gain inside the window is a large share of `mem.physmem` while the slope is still positive. This fires before a long leak fit is ready.
+
+Onboarding already exports the series. The `rhel_telemetry` role writes a hotproc predicate and adds `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` to `pcp_metrics`. Both RSS and `mem.util.free` are kilobytes. See [RHEL telemetry](04-rhel-telemetry.md#pcp-pcp2kafka). The worker does not yet emit this alert. A log line that contains the command name (unit errors, restart loops) can corroborate the host; the slope still decides. Skip when the message is already `Out of memory: Kill process`. Alert type: `PREEMPTIVE_PROCESS_MEMORY_GROWTH`, with `host`, `pid`, `cmd`, `rss`, `rate`, `tte_seconds`, and `reason` of `leak` or `rapid_growth`. The playbook records that process (`ps`, `smaps_rollup`, cgroup) and the slope. Leave `allow_service_restart` false. JVM heaps, database buffer pools, and file caches grow on purpose.
+
+**Storage-path degradation before filesystem corruption.** The catalog reacts to `I/O error`, `EXT4-fs error`, and `XFS: corrupt`, which is after the filesystem is already damaged. This pattern pairs a rate with a hardware log. It has no capacity TTE. Use the rate of `kernel.all.cpu.wait.total` (iowait ticks over the window, already collected). A per-device follow-on is `disk.dev.await`, which the default `pcp_metrics` list does not include. Leading logs on the same host, and the same device when the line has one: `exception Emask`, SCSI `FAILED Result`, `Medium Error` or a pending sector from `smartd`, or `blocked for more than 120 seconds`. Emit when iowait stays above the host baseline for the window and at least one of those lines is present. Skip when the line already matches the reactive filesystem-error rule, so [playbooks/isolate_host_io_error.yml](../ansible/eda/playbooks/isolate_host_io_error.yml) is not started twice. Alert type: `PREEMPTIVE_STORAGE_PATH_DEGRADATION`. Run that diagnostic playbook so the ticket has evidence. Leave `allow_lb_isolate` false until a person drains the host. When `kernel.all.cpu.user` and `kernel.all.cpu.sys` dominate and wait does not, this alert does not apply.
+
+**One syslog tag filling `/var`.** Byte TTE on `/var` or `/var/log` can already fire `PREEMPTIVE_STORAGE_EXHAUSTION_RISK`. That alert cannot tell Event-Driven Ansible whether to grow the volume or stop the writer. Count messages per `host` and `syslogtag` in the same window. Emit when the byte slope is positive, TTE is inside the horizon, and one tag (a debug-enabled service, a restart loop, journald) accounts for most of the new lines. A single ATA or SMART line stays on the storage-path pattern. When no tag dominates, keep `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` and [playbooks/proactive_disk_mitigation.yml](../ansible/eda/playbooks/proactive_disk_mitigation.yml). Alert type: `PREEMPTIVE_LOG_FLOOD_RISK`, with `host`, mount, and `syslogtag`. The playbook records `journalctl` for that unit and the size of `/var/log`. Leave `allow_lvextend` and `allow_podman_prune` false for this alert. Growing the disk feeds the flood. A restart or rate-limit stays gated off.
+
 ## 6.2 Local development (Quarkus dev mode)
 
 Use this section on a **developer workstation** before deploying to OpenShift. Kafka Dev Services runs through **Podman only** (not Docker Desktop). Language/tool versions come from [`worker/mise.toml`](../worker/mise.toml).

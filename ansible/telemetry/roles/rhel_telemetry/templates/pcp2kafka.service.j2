@@ -8,9 +8,10 @@ Requires=pmcd.service
 Type=simple
 Restart=always
 RestartSec=5s
-# Sampling interval and metric selection (disk used/capacity, memory, CPU).
+# Sampling interval and metric selection (disk, host memory, CPU, hot processes).
+# -4 update follows hotproc instance-domain changes after this unit starts.
 # Kafka bootstrap is the tls-external OpenShift Route on 443, not broker 9094.
-ExecStart=/bin/bash -c 'exec {{ pcp2json_path }} -t {{ pcp_interval }} {{ pcp_metrics | join(" ") }} | {{ kcat_path }} -P -b {{ kafka_bootstrap }} -t {{ kafka_pcp_topic }} -X security.protocol=ssl -X ssl.ca.location={{ kafka_ca_path }}'
+ExecStart=/bin/bash -c 'exec {{ pcp2json_path }} -t {{ pcp_interval }} -4 {{ pcp2json_names_change }} {{ pcp_metrics | join(" ") }} | {{ kcat_path }} -P -b {{ kafka_bootstrap }} -t {{ kafka_pcp_topic }} -X security.protocol=ssl -X ssl.ca.location={{ kafka_ca_path }}'
 StandardOutput=journal
 StandardError=journal
 

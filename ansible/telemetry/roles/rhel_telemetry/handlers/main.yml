@@ -8,6 +8,14 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
+- name: Reload hotproc config
+  ansible.builtin.command:
+    argv:
+      - pmstore
+      - hotproc.control.reload_config
+      - "1"
+  changed_when: true
+
 - name: Restart pcp2kafka
   ansible.builtin.systemd:
     name: pcp2kafka

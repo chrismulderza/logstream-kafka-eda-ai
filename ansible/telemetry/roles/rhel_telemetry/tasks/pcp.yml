@@ -5,6 +5,15 @@
     enabled: true
     state: started
 
+- name: Install hotproc predicate
+  ansible.builtin.template:
+    src: hotproc.conf.j2
+    dest: "{{ hotproc_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload hotproc config
+
 - name: Install pcp2kafka systemd unit
   ansible.builtin.template:
     src: pcp2kafka.service.j2
