@@ -1,0 +1,17 @@
+# Splunk Connect for Kafka (Connect worker config fragment)
+# Deploy as a Kafka Connect connector. group.id must be siem-splunk.
+name: splunk-logstream
+config:
+  connector.class: com.splunk.kafka.connect.SplunkSinkConnector
+  topics: rhel-system-logs,rhel-pcp-metrics,enriched-events
+  tasks.max: "3"
+  splunk.hec.uri: https://splunk.example.com:8088
+  splunk.hec.token: REPLACE_HEC_TOKEN
+  splunk.hec.ssl.validate.certs: "true"
+  splunk.indexes: logstream
+  splunk.sourcetypes: json
+  key.converter: org.apache.kafka.connect.storage.StringConverter
+  value.converter: org.apache.kafka.connect.json.JsonConverter
+  value.converter.schemas.enable: "false"
+  consumer.override.group.id: siem-splunk
+  consumer.override.auto.offset.reset: latest

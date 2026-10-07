@@ -1,0 +1,59 @@
+---
+# Collect ausearch/audit2allow text. Do not install a policy module unless gated.
+
+- name: SELinux AVC diagnosis report
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: true
+  gather_facts: false
+  vars:
+    allow_selinux_module: false
+    diagnostic_dir: /var/tmp/eda-selinux
+    syslog_message: ""
+  tasks:
+    - name: Create report directory
+      ansible.builtin.file:
+        path: "{{ diagnostic_dir }}"
+        state: directory
+        mode: "0750"
+
+    - name: Capture recent AVCs
+      ansible.builtin.command:
+        argv: [ausearch, -m, avc, -ts, recent]
+      register: avc_raw
+      changed_when: false
+      failed_when: false
+
+    - name: Generate audit2allow suggestion (not installed)
+      ansible.builtin.shell: |
+        set -o pipefail
+        ausearch -m avc -ts recent --raw | audit2allow -m eda_suggested
+      args:
+        executable: /bin/bash
+      register: avc_allow
+      changed_when: false
+      failed_when: false
+
+    - name: Write diagnosis report
+      ansible.builtin.copy:
+        dest: "{{ diagnostic_dir }}/avc-report.txt"
+        mode: "0640"
+        content: |
+          triggering_syslog: {{ syslog_message }}
+
+          === ausearch ===
+          {{ avc_raw.stdout | default('') }}
+
+          === audit2allow -m eda_suggested (NOT installed) ===
+          {{ avc_allow.stdout | default('') }}
+
+    - name: Show report path
+      ansible.builtin.debug:
+        msg: "Wrote {{ diagnostic_dir }}/avc-report.txt. Module install gated={{ not (allow_selinux_module | bool) }}"
+
+    - name: Refuse automatic semodule install
+      ansible.builtin.debug:
+        msg: >-
+          allow_selinux_module is true, but this playbook still does not
+          run semodule -i. Review {{ diagnostic_dir }}/avc-report.txt and
+          install a reviewed .pp by hand.
+      when: allow_selinux_module | bool

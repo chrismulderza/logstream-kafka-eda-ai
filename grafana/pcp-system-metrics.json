@@ -1,0 +1,71 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "id": null,
+  "panels": [
+    {
+      "title": "PCP filesys used (from Kafka JSON — use Infinity or Logstash-derived Prometheus)",
+      "type": "text",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "PCP samples land on topic `rhel-pcp-metrics`. Expose them via Logstash/OpenTelemetry to Prometheus, or Grafana Infinity against a query API. The timeseries below expect metrics named `pcp_filesys_used_bytes` and `pcp_filesys_capacity_bytes` with labels `host` and `mount`."
+      }
+    },
+    {
+      "title": "Filesystem used bytes",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "pcp_filesys_used_bytes",
+          "legendFormat": "{{host}} {{mount}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Filesystem capacity bytes",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "pcp_filesys_capacity_bytes",
+          "legendFormat": "{{host}} {{mount}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Memory used",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "pcp_mem_util_used_bytes",
+          "legendFormat": "{{host}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["pcp", "logstream"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {}
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "Logstream PCP system metrics",
+  "uid": "logstream-pcp",
+  "version": 1
+}

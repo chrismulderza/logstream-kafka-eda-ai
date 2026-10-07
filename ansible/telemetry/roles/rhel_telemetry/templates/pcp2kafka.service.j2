@@ -1,0 +1,18 @@
+[Unit]
+Description=PCP metrics to Kafka (pcp2json piped to kcat)
+After=network-online.target pmcd.service
+Wants=network-online.target
+Requires=pmcd.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5s
+# Sampling interval and metric selection (disk used/capacity, memory, CPU).
+# Kafka bootstrap is the tls-external OpenShift Route on 443, not broker 9094.
+ExecStart=/bin/bash -c 'exec {{ pcp2json_path }} -t {{ pcp_interval }} {{ pcp_metrics | join(" ") }} | {{ kcat_path }} -P -b {{ kafka_bootstrap }} -t {{ kafka_pcp_topic }} -X security.protocol=ssl -X ssl.ca.location={{ kafka_ca_path }}'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

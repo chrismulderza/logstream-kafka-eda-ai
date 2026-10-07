@@ -1,0 +1,31 @@
+---
+# Notify SOC (Slack incoming webhook or debug). No host mutation.
+
+- name: Notify SOC of a security-relevant syslog event
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    event_name: syslog event
+    syslog_message: ""
+    target_host: unknown
+    slack_webhook_url: ""
+  tasks:
+    - name: Show SOC notification payload
+      ansible.builtin.debug:
+        msg:
+          event: "{{ event_name }}"
+          host: "{{ target_host }}"
+          message: "{{ syslog_message }}"
+
+    - name: POST to Slack webhook when configured
+      ansible.builtin.uri:
+        url: "{{ slack_webhook_url }}"
+        method: POST
+        body_format: json
+        body:
+          text: >-
+            {{ event_name }} on {{ target_host }}: {{ syslog_message }}
+        status_code: [200]
+      when: slack_webhook_url | length > 0
+      no_log: true

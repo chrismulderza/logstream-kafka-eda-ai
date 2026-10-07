@@ -1,0 +1,51 @@
+---
+- name: Create rsyslog Kafka certificate directory
+  ansible.builtin.file:
+    path: "{{ rsyslog_kafka_certs_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install cluster CA as a system trust anchor
+  ansible.builtin.copy:
+    src: "{{ kafka_ca_src }}"
+    dest: /etc/pki/ca-trust/source/anchors/kafka-cluster-ca.pem
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Update CA trust
+    - Restore CA file context
+  when:
+    - kafka_ca_src | length > 0
+    - kafka_ca_install_trust_anchor | bool
+    - kafka_ca_src != 'kafka-cluster-ca.pem.example'
+
+- name: Install cluster CA for rsyslog omkafka
+  ansible.builtin.copy:
+    src: "{{ kafka_ca_src }}"
+    dest: "{{ kafka_ca_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - kafka_ca_src | length > 0
+    - kafka_ca_src != 'kafka-cluster-ca.pem.example'
+    - kafka_ca_path != '/etc/pki/ca-trust/source/anchors/kafka-cluster-ca.pem'
+
+- name: Flush CA trust handlers before TLS exporters start
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify Kafka CA file exists on the host
+  ansible.builtin.stat:
+    path: "{{ kafka_ca_path }}"
+  register: kafka_ca_stat
+
+- name: Fail if Kafka CA PEM is missing
+  ansible.builtin.fail:
+    msg: >-
+      {{ kafka_ca_path }} is missing. Extract the Strimzi cluster CA
+      (secret telemetry-cluster-ca-cert, key ca.crt) and set kafka_ca_src,
+      or copy the PEM to {{ kafka_ca_path }} (or /etc/rsyslog.d/certs/).
+  when: not kafka_ca_stat.stat.exists

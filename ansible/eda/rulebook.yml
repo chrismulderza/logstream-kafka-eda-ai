@@ -1,0 +1,215 @@
+---
+# Dual-home syslog: rhel-system-logs only. Predictive rules live in
+# rulebook-optional-predictive.yml (see docs/06-optional-predictive-ai-worker.md).
+#
+# ansible.eda.kafka uses host + port. JSON is under event.body (and flattened).
+# CLI: run_playbook. AAP: aap-rulebook.yml (run_job_template).
+
+- name: RHEL syslog events
+  hosts: rhel_telemetry
+  sources:
+    - name: rhel_system_logs
+      ansible.eda.kafka:
+        host: "{{ kafka_host }}"
+        port: "{{ kafka_port }}"
+        topic: rhel-system-logs
+        group_id: "{{ kafka_group_id | default('ansible-eda') }}"
+        offset: "{{ kafka_offset | default('latest') }}"
+        security_protocol: "{{ kafka_security_protocol | default('PLAINTEXT') }}"
+  rules:
+    - name: Kernel OOM killer
+      condition: >-
+        event.body.message contains "Out of memory: Kill process" or
+        event.message contains "Out of memory: Kill process"
+      throttle:
+        once_after: 10 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/remediate_oom.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              allow_service_restart: "{{ allow_service_restart | default(false) }}"
+              allow_drop_caches: "{{ allow_drop_caches | default(false) }}"
+              service_name: "{{ service_name | default('') }}"
+
+    - name: Failed SSH authentication
+      condition: >-
+        event.body.message contains "Failed password" or
+        event.body.message contains "authentication failure" or
+        event.message contains "Failed password" or
+        event.message contains "authentication failure"
+      throttle:
+        once_within: 1 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/ban_ssh_source.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              allow_firewall_ban: "{{ allow_firewall_ban | default(false) }}"
+
+    - name: Sudo privilege escalation failure
+      condition: >-
+        event.body.message contains "incorrect password attempt" or
+        event.message contains "incorrect password attempt"
+      throttle:
+        once_within: 5 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/notify_soc.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              event_name: "Sudo / privilege escalation failure"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+
+    - name: SELinux AVC
+      condition: >-
+        event.body.message contains "type=AVC" or
+        event.body.message contains "msg=audit" or
+        event.message contains "type=AVC" or
+        event.message contains "msg=audit"
+      throttle:
+        once_after: 15 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/selinux_avc_report.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              allow_selinux_module: "{{ allow_selinux_module | default(false) }}"
+
+    - name: Systemd service failure
+      condition: >-
+        event.body.message contains "Failed to start" or
+        event.body.message contains "entered failed state" or
+        event.message contains "Failed to start" or
+        event.message contains "entered failed state"
+      throttle:
+        once_within: 5 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/restart_failed_service.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              allow_service_restart: "{{ allow_service_restart | default(false) }}"
+              service_name: "{{ service_name | default('') }}"
+              restart_max_attempts: "{{ restart_max_attempts | default(3) }}"
+
+    - name: Storage or disk I/O error
+      condition: >-
+        event.body.message contains "I/O error" or
+        event.body.message contains "EXT4-fs error" or
+        event.body.message contains "XFS: corrupt" or
+        event.message contains "I/O error" or
+        event.message contains "EXT4-fs error" or
+        event.message contains "XFS: corrupt"
+      throttle:
+        once_after: 15 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/isolate_host_io_error.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              allow_lb_isolate: "{{ allow_lb_isolate | default(false) }}"
+              lb_isolate_command: "{{ lb_isolate_command | default('') }}"
+
+    - name: User or group modification
+      condition: >-
+        event.body.message contains "useradd" or
+        event.body.message contains "usermod" or
+        event.body.message contains "groupadd" or
+        event.body.message contains "USER_MGMT" or
+        event.message contains "useradd" or
+        event.message contains "usermod" or
+        event.message contains "groupadd" or
+        event.message contains "USER_MGMT"
+      throttle:
+        once_within: 5 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/audit_user_mgmt.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              change_ticket_id: "{{ change_ticket_id | default('') }}"
+              require_change_ticket: "{{ require_change_ticket | default(false) }}"
+
+    - name: Kernel panic or MCE
+      condition: >-
+        event.body.message contains "Kernel panic - not syncing" or
+        event.body.message contains "MCE: Hardware error" or
+        event.message contains "Kernel panic - not syncing" or
+        event.message contains "MCE: Hardware error"
+      throttle:
+        once_after: 30 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/ipmi_power_cycle.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              allow_ipmi_reboot: "{{ allow_ipmi_reboot | default(false) }}"
+
+    - name: Network link down
+      condition: >-
+        event.body.message contains "state is now DISCONNECTED" or
+        event.body.message contains "link down" or
+        event.message contains "state is now DISCONNECTED" or
+        event.message contains "link down"
+      throttle:
+        once_within: 5 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/reset_network_interface.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              allow_nmcli_reset: "{{ allow_nmcli_reset | default(false) }}"
+              nmcli_connection: "{{ nmcli_connection | default('') }}"
+
+    - name: DNF or YUM package install
+      condition: >-
+        event.body.message contains "Installed:" or
+        event.message contains "Installed:"
+      throttle:
+        once_within: 5 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      actions:
+        - run_playbook:
+            name: playbooks/audit_package_install.yml
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              syslog_message: "{{ event.body.message | default(event.message) | default('') }}"
+              package_baseline_file: "{{ package_baseline_file | default('') }}"

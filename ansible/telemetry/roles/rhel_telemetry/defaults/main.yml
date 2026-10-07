@@ -1,0 +1,46 @@
+---
+kafka_bootstrap: "telemetry-kafka-tls-external-bootstrap-logstream-kafka.apps.example.com:443"
+kafka_security_protocol: SSL
+kafka_logs_topic: rhel-system-logs
+kafka_pcp_topic: rhel-pcp-metrics
+kafka_ca_path: /etc/pki/ca-trust/source/anchors/kafka-cluster-ca.pem
+kafka_ca_src: kafka-cluster-ca.pem
+kafka_ca_install_trust_anchor: true
+
+# Additional omkafka drop-in only. Never /etc/rsyslog.conf.
+# 05- sorts before typical ArcSight 10-/50- files that may `stop` after omfwd.
+rsyslog_kafka_conf: /etc/rsyslog.d/05-omkafka-additional.conf
+rsyslog_kafka_certs_dir: /etc/rsyslog.d/certs
+rsyslog_legacy_kafka_confs:
+  - /etc/rsyslog.d/10-kafka.conf
+rsyslog_fail_on_early_stop: true
+
+pcp_interval: 15s
+pcp_metrics:
+  - filesys.used
+  - filesys.capacity
+  - mem.util.used
+  - mem.physmem
+  - mem.util.free
+  - kernel.all.cpu.user
+  - kernel.all.cpu.sys
+  - kernel.all.cpu.idle
+  - kernel.all.cpu.wait.total
+
+pcp2json_path: /usr/bin/pcp2json
+kcat_path: /usr/bin/kcat
+pcp2kafka_unit: /etc/systemd/system/pcp2kafka.service
+
+pcp_expose_remote: false
+
+telemetry_selinux_install_module: true
+telemetry_selinux_nis_fallback: false
+telemetry_enable_epel: false
+telemetry_kcat_pip_fallback: false
+
+telemetry_packages:
+  - rsyslog
+  - rsyslog-kafka
+  - pcp
+  - pcp-system-tools
+  - pcp-export-pcp2json

@@ -1,0 +1,9 @@
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: logstream-kafka
+  namespace: logstream-kafka
+spec:
+  # Namespace-scoped install: Cluster Operator watches only this namespace.
+  targetNamespaces:
+    - logstream-kafka

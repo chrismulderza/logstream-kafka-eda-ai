@@ -1,0 +1,28 @@
+---
+# User/group management syslog. Optionally require a change-ticket extra var.
+
+- name: Audit user and group modifications
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    syslog_message: ""
+    target_host: unknown
+    change_ticket_id: ""
+    require_change_ticket: false
+  tasks:
+    - name: Record user management event
+      ansible.builtin.debug:
+        msg:
+          host: "{{ target_host }}"
+          ticket: "{{ change_ticket_id | default('none') }}"
+          message: "{{ syslog_message }}"
+
+    - name: Fail when a change ticket is required and missing
+      ansible.builtin.fail:
+        msg: >-
+          USER_MGMT event on {{ target_host }} has no change_ticket_id.
+          Set require_change_ticket=false to log only, or pass an approved ticket.
+      when:
+        - require_change_ticket | bool
+        - change_ticket_id | default('') | length == 0

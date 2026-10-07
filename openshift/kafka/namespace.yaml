@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logstream-kafka
+  labels:
+    app.kubernetes.io/name: logstream-kafka
+    app.kubernetes.io/part-of: logstream
+    kubernetes.io/metadata.name: logstream-kafka
+  annotations:
+    openshift.io/display-name: Logstream Kafka
+    openshift.io/description: Namespace-scoped Streams for Apache Kafka (KRaft) cluster for logstream telemetry.

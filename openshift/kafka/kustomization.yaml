@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: logstream-kafka
+resources:
+  - namespace.yaml
+  - operator-group.yaml
+  - subscription.yaml
+  - kafka-nodepool-controller.yaml
+  - kafka-nodepool-broker.yaml
+  - kafka.yaml
+  - kafka-topic-rhel-system-logs.yaml
+  - kafka-topic-rhel-pcp-metrics.yaml
+  - kafka-topic-raw-metrics.yaml
+  - kafka-topic-enriched-events.yaml

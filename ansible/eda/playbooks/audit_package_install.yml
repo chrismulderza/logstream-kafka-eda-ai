@@ -1,0 +1,27 @@
+---
+# Compare a DNF/YUM Installed: line to an optional baseline file (one NVRA per line).
+
+- name: Audit package installation
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: false
+  gather_facts: false
+  vars:
+    syslog_message: ""
+    package_baseline_file: ""
+  tasks:
+    - name: Show package install syslog
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          message: "{{ syslog_message }}"
+          baseline: "{{ package_baseline_file | default('none') }}"
+
+    - name: Flag drift when baseline is provided and line is not listed
+      ansible.builtin.debug:
+        msg: >-
+          Installed package line is not in {{ package_baseline_file }}.
+          Treat as inventory drift for SIEM / compliance review.
+      when:
+        - package_baseline_file | default('') | length > 0
+        - lookup('file', package_baseline_file, errors='ignore') is string
+        - syslog_message not in lookup('file', package_baseline_file, errors='ignore')

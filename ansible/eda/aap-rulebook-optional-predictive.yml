@@ -1,0 +1,38 @@
+---
+# Optional AAP companion to rulebook-optional-predictive.yml.
+
+- name: Enriched predictive events
+  hosts: rhel_telemetry
+  sources:
+    - name: enriched_events
+      ansible.eda.kafka:
+        host: "{{ kafka_host }}"
+        port: "{{ kafka_port }}"
+        topic: enriched-events
+        group_id: "{{ kafka_group_id | default('ansible-eda') }}"
+        offset: "{{ kafka_offset | default('latest') }}"
+        security_protocol: "{{ kafka_security_protocol | default('PLAINTEXT') }}"
+  rules:
+    - name: Predictive storage exhaustion
+      condition: >-
+        event.body.alert_type == "PREEMPTIVE_STORAGE_EXHAUSTION_RISK" or
+        event.body.type == "PREEMPTIVE_STORAGE_EXHAUSTION_RISK" or
+        event.alert_type == "PREEMPTIVE_STORAGE_EXHAUSTION_RISK" or
+        event.type == "PREEMPTIVE_STORAGE_EXHAUSTION_RISK"
+      throttle:
+        once_after: 15 minutes
+        group_by_attributes:
+          - event.body.host
+          - event.host
+      action:
+        run_job_template:
+          name: "{{ job_template_disk_mitigation | default('proactive-disk-mitigation') }}"
+          organization: "{{ aap_organization | default('Default') }}"
+          job_args:
+            extra_vars:
+              target_host: "{{ event.body.host | default(event.host) | default('rhel_telemetry') }}"
+              allow_podman_prune: "{{ allow_podman_prune | default(false) }}"
+              allow_lvextend: "{{ allow_lvextend | default(false) }}"
+              vg_name: "{{ vg_name | default('') }}"
+              lv_path: "{{ lv_path | default('') }}"
+              size: "{{ size | default('') }}"

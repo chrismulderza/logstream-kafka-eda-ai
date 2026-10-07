@@ -1,0 +1,61 @@
+---
+# Disk I/O / filesystem corruption. Isolation command is site-specific and gated.
+
+- name: Respond to storage I/O errors
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: true
+  gather_facts: false
+  vars:
+    allow_lb_isolate: false
+    lb_isolate_command: ""
+    syslog_message: ""
+    diagnostic_dir: /var/tmp/eda-io-error
+  tasks:
+    - name: Create diagnostic directory
+      ansible.builtin.file:
+        path: "{{ diagnostic_dir }}"
+        state: directory
+        mode: "0750"
+
+    - name: Capture dmesg tail
+      ansible.builtin.shell: |
+        set -o pipefail
+        dmesg --ctime --color=never | tail -n 200
+      args:
+        executable: /bin/bash
+      register: io_dmesg
+      changed_when: false
+      failed_when: false
+
+    - name: Write I/O error report
+      ansible.builtin.copy:
+        dest: "{{ diagnostic_dir }}/io-error.txt"
+        mode: "0640"
+        content: |
+          {{ syslog_message }}
+
+          === dmesg ===
+          {{ io_dmesg.stdout | default('') }}
+
+          Open an urgent hardware ticket. Isolation is gated.
+
+    - name: Show report
+      ansible.builtin.debug:
+        msg:
+          report: "{{ diagnostic_dir }}/io-error.txt"
+          isolate_gated: "{{ not (allow_lb_isolate | bool) }}"
+
+    - name: Require isolate command when isolation is enabled
+      ansible.builtin.assert:
+        that:
+          - lb_isolate_command | default('') | length > 0
+        fail_msg: allow_lb_isolate is true but lb_isolate_command is empty.
+      when: allow_lb_isolate | bool
+
+    - name: Run site load-balancer isolate command (opt-in)
+      ansible.builtin.shell: "{{ lb_isolate_command }}"
+      args:
+        executable: /bin/bash
+      when:
+        - allow_lb_isolate | bool
+        - lb_isolate_command | default('') | length > 0

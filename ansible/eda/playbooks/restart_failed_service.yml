@@ -1,0 +1,47 @@
+---
+# Restart a failed systemd unit up to N times. Restart is gated.
+
+- name: Restart failed systemd service
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: true
+  gather_facts: false
+  vars:
+    allow_service_restart: false
+    service_name: ""
+    syslog_message: ""
+    restart_max_attempts: 3
+  tasks:
+    - name: Parse unit from Failed to start line
+      ansible.builtin.set_fact:
+        parsed_unit: "{{ syslog_message | regex_search('Failed to start ([^\\. ]+\\.[a-z]+)', '\\1') }}"
+
+    - name: Resolve unit name
+      ansible.builtin.set_fact:
+        unit: "{{ service_name if (service_name | length > 0) else (parsed_unit | default('')) }}"
+
+    - name: Show systemd failure
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          unit: "{{ unit | default('unparsed') }}"
+          gated: "{{ not (allow_service_restart | bool) }}"
+          message: "{{ syslog_message }}"
+
+    - name: Require a unit name when restart is enabled
+      ansible.builtin.assert:
+        that:
+          - unit | default('') | length > 0
+        fail_msg: No systemd unit in extra vars or syslog; refusing restart.
+      when: allow_service_restart | bool
+
+    - name: Restart unit with retries (opt-in)
+      ansible.builtin.service:
+        name: "{{ unit }}"
+        state: restarted
+      register: restart_result
+      retries: "{{ restart_max_attempts | int }}"
+      delay: 5
+      until: restart_result is succeeded
+      when:
+        - allow_service_restart | bool
+        - unit | default('') | length > 0

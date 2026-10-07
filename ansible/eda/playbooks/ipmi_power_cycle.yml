@@ -1,0 +1,22 @@
+---
+# Out-of-band power cycle. Default is report-only. IPMI is destructive.
+
+- name: Kernel panic / MCE response
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: true
+  gather_facts: false
+  vars:
+    allow_ipmi_reboot: false
+    syslog_message: ""
+  tasks:
+    - name: Show panic or MCE event
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          gated: "{{ not (allow_ipmi_reboot | bool) }}"
+          message: "{{ syslog_message }}"
+
+    - name: Chassis power cycle via ipmitool (opt-in)
+      ansible.builtin.command:
+        argv: [ipmitool, chassis, power, cycle]
+      when: allow_ipmi_reboot | bool

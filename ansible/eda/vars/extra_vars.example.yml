@@ -1,0 +1,65 @@
+---
+# Passed to ansible-rulebook via --vars (CLI) or Activation "Variables" (AAP).
+# Destructive gates default to false. Enable only after reviewing blast radius.
+
+# ansible.eda.kafka uses host + port (not bootstrap_servers).
+kafka_host: telemetry-kafka-plain-bootstrap.logstream-kafka.svc
+kafka_port: "9092"
+kafka_security_protocol: PLAINTEXT
+kafka_offset: latest
+
+# TLS / SASL for the OpenShift Route listener (tls-external, port 9094).
+# Paths must exist inside the DE/EE container.
+# kafka_cafile: /etc/eda/certs/ca.crt
+# kafka_certfile: /etc/eda/certs/client.crt
+# kafka_keyfile: /etc/eda/certs/client.key
+
+# Consumer group MUST stay unique versus SIEM (siem-logstash, siem-splunk)
+# and the optional stream worker (stream-worker).
+kafka_group_id: ansible-eda
+
+# AAP job templates (used only by aap-rulebook.yml).
+aap_organization: Default
+job_template_remediate_oom: remediate-oom
+job_template_ban_ssh: ban-ssh-source
+job_template_notify_soc: notify-soc
+job_template_selinux_avc: selinux-avc-report
+job_template_restart_service: restart-failed-service
+job_template_isolate_io: isolate-host-io-error
+job_template_user_mgmt: audit-user-mgmt
+job_template_ipmi: ipmi-power-cycle
+job_template_nmcli: reset-network-interface
+job_template_pkg_audit: audit-package-install
+job_template_disk_mitigation: proactive-disk-mitigation
+
+# --- Safety gates (playbooks treat these as false unless explicitly true) ---
+allow_service_restart: false
+service_name: ""
+restart_max_attempts: 3
+allow_drop_caches: false
+
+allow_firewall_ban: false
+ban_firewall_backend: firewalld
+
+allow_selinux_module: false
+allow_lb_isolate: false
+lb_isolate_command: ""
+
+allow_ipmi_reboot: false
+allow_nmcli_reset: false
+nmcli_connection: ""
+
+require_change_ticket: false
+change_ticket_id: ""
+package_baseline_file: ""
+slack_webhook_url: ""
+
+# Optional predictive worker (chapter 6)
+allow_podman_prune: false
+allow_lvextend: false
+vg_name: ""
+lv_path: ""
+size: ""
+
+# Optional: must match an inventory hostname or group (rhel_telemetry).
+# target_host: rhel-app-01

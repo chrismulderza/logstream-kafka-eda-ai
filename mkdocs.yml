@@ -1,0 +1,74 @@
+site_name: Event-Driven Telemetry Deployment Guide
+site_description: Administrator deployment book for Kafka, RHEL syslog analysis with Event-Driven Ansible, and optional predictive analytics
+site_url: https://chrismulderza.github.io/logstream-kafka-eda-ai/
+repo_url: https://github.com/chrismulderza/logstream-kafka-eda-ai
+repo_name: chrismulderza/logstream-kafka-eda-ai
+edit_uri: edit/main/docs/
+docs_dir: docs
+theme:
+  name: material
+  custom_dir: overrides
+  logo: assets/images/openshift.png
+  favicon: assets/images/openshift.png
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+extra_css:
+  - assets/stylesheets/extra.css
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - mdx_truly_sane_lists
+validation:
+  links:
+    absolute_links: ignore
+    unrecognized_links: ignore
+    not_found: info
+nav:
+  - Home: index.md
+  - 1. Architecture: 01-architecture.md
+  - 2. Prerequisites: 02-prerequisites.md
+  - 3. Kafka on OpenShift: 03-kafka-openshift.md
+  - 4. RHEL Telemetry: 04-rhel-telemetry.md
+  - 5. Event-Driven Ansible: 05-event-driven-ansible.md
+  - 6. Optional Predictive Worker: 06-optional-predictive-ai-worker.md
+  - 7. Validation Runbook: 07-validation-runbook.md
+  - 8. SIEM and Dashboards: 08-siem-dashboards.md

@@ -1,0 +1,35 @@
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: telemetry
+  namespace: logstream-kafka
+  annotations:
+    # Streams for Apache Kafka 3.x is KRaft-only and requires node pools.
+    # These annotations remain the documented KRaft/node-pool enablement markers
+    # and keep the CR compatible with 2.x-era tooling that still inspects them.
+    strimzi.io/kraft: enabled
+    strimzi.io/node-pools: enabled
+spec:
+  kafka:
+    # Kafka version is supplied by the installed operator CSV. Do not pin a
+    # version here unless you have verified it against that CSV.
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls-external
+        port: 9094
+        type: route
+        tls: true
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      auto.create.topics.enable: "false"
+      num.partitions: "3"
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

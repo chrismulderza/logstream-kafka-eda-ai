@@ -1,0 +1,14 @@
+---
+# Copy to inventory/hosts.yml and replace example hosts.
+all:
+  vars:
+    ansible_user: ansible
+    ansible_become: true
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    rhel_telemetry:
+      hosts:
+        rhel-app-01:
+          ansible_host: 192.0.2.11
+        rhel-app-02:
+          ansible_host: 192.0.2.12

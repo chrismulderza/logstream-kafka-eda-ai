@@ -1,0 +1,16 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: amq-streams
+  namespace: logstream-kafka
+spec:
+  channel: stable
+  name: amq-streams
+  # CatalogSource lives in openshift-marketplace; its object name is redhat-operators
+  # on a connected OpenShift cluster (not the namespace name).
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  # Manual approval avoids unattended jumps on the stable channel, which can skip
+  # required pre-upgrade steps. Approve InstallPlans after reading the release notes.
+  installPlanApproval: Manual
+  # Do not pin startingCSV: install the latest CSV currently published on stable.

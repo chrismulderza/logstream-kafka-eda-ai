@@ -1,0 +1,37 @@
+---
+# Reset a NetworkManager connection. Default is report-only.
+
+- name: Reset network interface after link down
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: true
+  gather_facts: false
+  vars:
+    allow_nmcli_reset: false
+    nmcli_connection: ""
+    syslog_message: ""
+  tasks:
+    - name: Show link-down event
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          connection: "{{ nmcli_connection | default('unset') }}"
+          gated: "{{ not (allow_nmcli_reset | bool) }}"
+          message: "{{ syslog_message }}"
+
+    - name: Require connection name when reset is enabled
+      ansible.builtin.assert:
+        that:
+          - nmcli_connection | default('') | length > 0
+        fail_msg: allow_nmcli_reset is true but nmcli_connection is empty.
+      when: allow_nmcli_reset | bool
+
+    - name: nmcli connection down/up (opt-in)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        nmcli connection down "{{ nmcli_connection }}"
+        nmcli connection up "{{ nmcli_connection }}"
+      args:
+        executable: /bin/bash
+      when:
+        - allow_nmcli_reset | bool
+        - nmcli_connection | default('') | length > 0

@@ -1,0 +1,25 @@
+---
+description: Write formulas as plain text for MkDocs; do not use LaTeX
+alwaysApply: true
+---
+
+# Plain-text formulas (no LaTeX)
+
+This repo is published with MkDocs Material. MathJax/KaTeX is not enabled. Do not use LaTeX (`\[ \]`, `\( \)`, `$$`, `\text{}`, `\frac{}`). It renders as raw markup.
+
+In docs, README, comments, and user-facing text, use a fenced `text` block or a single-line expression with Unicode where helpful (`Δ`, subscripts as `_current`).
+
+```text
+# BAD — will not render
+\[
+\text{TTE} = \frac{\text{Capacity} - \text{Used}_{\text{current}}}{\left(\frac{\Delta \text{Used}}{\Delta t}\right)}
+\]
+If \(\Delta \text{Used} / \Delta t \le 0\), skip the alert.
+
+# GOOD
+TTE = (Capacity - Used_current) / (ΔUsed / Δt)
+```
+
+If the fill rate is zero or negative (usage is flat or shrinking), do not emit an exhaustion alert.
+
+Match the worker chapter style: name the symbols in a following sentence rather than wrapping them in `\text{...}`.

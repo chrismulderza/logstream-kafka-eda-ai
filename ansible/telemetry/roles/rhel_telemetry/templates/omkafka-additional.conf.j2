@@ -1,0 +1,59 @@
+{#
+  ADDITIONAL rsyslog destination for Kafka. This file must not replace
+  /etc/rsyslog.conf or existing ArcSight / SIEM drop-ins.
+
+  Do not use `stop` or `& ~` here. Messages continue to later rules, including
+  ArcSight SmartConnector / Logger forwarding (omfwd, omrelp, CEF).
+
+  Lexical order: this drop-in is named to load early (05-) so omkafka runs
+  *before* typical ArcSight files that discard with `stop` after forwarding.
+
+  kafka_bootstrap is the OpenShift Route for listener tls-external, port 443.
+#}
+
+# Dual-home: Kafka copy only. Existing ArcSight configuration stays
+# in its original files and must keep working independently of this action.
+module(load="omkafka")
+
+template(name="json_kafka" type="list") {
+    constant(value="{")
+    constant(value="\"@timestamp\":\"")
+    property(name="timereported" dateFormat="rfc3339")
+    constant(value="\",")
+    constant(value="\"host\":")
+    property(name="hostname" format="json")
+    constant(value=",")
+    constant(value="\"severity\":")
+    property(name="syslogseverity-text" format="json")
+    constant(value=",")
+    constant(value="\"facility\":")
+    property(name="syslogfacility-text" format="json")
+    constant(value=",")
+    constant(value="\"syslogtag\":")
+    property(name="syslogtag" format="json")
+    constant(value=",")
+    constant(value="\"message\":")
+    property(name="msg" format="json")
+    constant(value="}")
+}
+
+# RainerScript action with no stop: the message remains in the ruleset for
+# ArcSight omfwd/omrelp and local files (/var/log/messages, etc.).
+action(
+    type="omkafka"
+    name="omkafka_rhel_system_logs"
+    broker=["{{ kafka_bootstrap }}"]
+    topic="{{ kafka_logs_topic }}"
+    template="json_kafka"
+    confParam=[
+        "security.protocol=ssl",
+        "ssl.ca.location={{ kafka_ca_path }}"
+    ]
+    queue.type="LinkedList"
+    queue.filename="omkafka_rhel_system_logs"
+    queue.maxdiskspace="1g"
+    queue.saveonshutdown="on"
+    action.resumeRetryCount="-1"
+    action.reportSuspension="on"
+    action.reportSuspensionContinuation="on"
+)

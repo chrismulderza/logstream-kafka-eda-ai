@@ -1,0 +1,12 @@
+site/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.retry
+ansible/telemetry/inventory/hosts.yml
+ansible/telemetry/group_vars/all.yml
+ansible/eda/inventory/hosts.yml
+openshift/worker/secret.yaml
+.env
+credentials.json

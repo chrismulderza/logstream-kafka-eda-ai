@@ -1,0 +1,15 @@
+module rsyslog_omkafka 1.0;
+
+require {
+	type syslogd_t;
+	type http_port_t;
+	type unreserved_port_t;
+	class tcp_socket name_connect;
+}
+
+# OpenShift Routes listen on 443 (http_port_t) even when the Kafka
+# broker listener is 9094. Allow rsyslog omkafka TLS to the bootstrap Route.
+allow syslogd_t http_port_t:tcp_socket name_connect;
+
+# Optional: direct broker 9094 if a host ever bypasses the Route.
+allow syslogd_t unreserved_port_t:tcp_socket name_connect;

@@ -1,0 +1,24 @@
+---
+- name: Enable and start pmcd
+  ansible.builtin.service:
+    name: pmcd
+    enabled: true
+    state: started
+
+- name: Install pcp2kafka systemd unit
+  ansible.builtin.template:
+    src: pcp2kafka.service.j2
+    dest: "{{ pcp2kafka_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart pcp2kafka
+
+- name: Enable and start pcp2kafka
+  ansible.builtin.systemd:
+    name: pcp2kafka
+    enabled: true
+    state: started
+    daemon_reload: true

@@ -1,0 +1,53 @@
+---
+# Copy to group_vars/all.yml (or pass equivalent -e extra-vars).
+#   cp group_vars/all.yml.example group_vars/all.yml
+#
+# Kafka bootstrap for RHEL hosts is the OpenShift *Route* for listener
+# tls-external, NOT broker port 9094. Routes terminate on 443.
+# See docs/03-kafka-openshift.md and docs/04-rhel-telemetry.md.
+
+kafka_bootstrap: "telemetry-kafka-tls-external-bootstrap-logstream-kafka.apps.example.com:443"
+kafka_security_protocol: SSL
+
+kafka_logs_topic: rhel-system-logs
+kafka_pcp_topic: rhel-pcp-metrics
+
+# Cluster CA on the RHEL host (Strimzi cluster CA PEM from
+# secret/telemetry-cluster-ca-cert). Preferred: trust anchors.
+# Alternative: /etc/rsyslog.d/certs/kafka-cluster-ca.pem
+kafka_ca_path: /etc/pki/ca-trust/source/anchors/kafka-cluster-ca.pem
+
+# Path on the Ansible controller to the extracted ca.crt / PEM.
+# Place a copy at roles/rhel_telemetry/files/kafka-cluster-ca.pem or set an absolute path.
+kafka_ca_src: kafka-cluster-ca.pem
+
+# Additional omkafka drop-in only. Never /etc/rsyslog.conf.
+# Existing ArcSight / SIEM forwarding in rsyslog.d must stay in place.
+# 05- sorts before typical ArcSight 10-/50- files that may `stop` after omfwd.
+rsyslog_kafka_conf: /etc/rsyslog.d/05-omkafka-additional.conf
+rsyslog_fail_on_early_stop: true
+
+pcp_interval: 15s
+pcp_metrics:
+  - filesys.used
+  - filesys.capacity
+  - mem.util.used
+  - mem.physmem
+  - mem.util.free
+  - kernel.all.cpu.user
+  - kernel.all.cpu.sys
+  - kernel.all.cpu.idle
+  - kernel.all.cpu.wait.total
+
+# Open firewalld for remote PCP collectors (pmcd/pmproxy). Metrics to Kafka
+# are outbound over 443 and do not require these ports.
+pcp_expose_remote: false
+
+# SELinux: install the targeted rsyslog_omkafka module (preferred).
+telemetry_selinux_install_module: true
+# Last resort only — do not enable unless the custom module is insufficient.
+telemetry_selinux_nis_fallback: false
+
+# kcat is often absent from AppStream. Allow EPEL, then pip/kafkacat.
+telemetry_enable_epel: false
+telemetry_kcat_pip_fallback: false

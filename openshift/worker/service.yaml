@@ -1,0 +1,20 @@
+# Optional Service exposing the worker health port for probes and debugging.
+# Kafka traffic is outbound from the pod; this Service is not on the data path.
+apiVersion: v1
+kind: Service
+metadata:
+  name: predictive-ai-worker
+  namespace: logstream-kafka
+  labels:
+    app.kubernetes.io/name: predictive-ai-worker
+    app.kubernetes.io/part-of: logstream-kafka
+    app.kubernetes.io/component: stream-worker
+spec:
+  selector:
+    app.kubernetes.io/name: predictive-ai-worker
+  ports:
+    - name: health
+      port: 8080
+      targetPort: health
+      protocol: TCP
+  type: ClusterIP

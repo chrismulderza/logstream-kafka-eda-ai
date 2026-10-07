@@ -1,0 +1,29 @@
+---
+description: Draw all diagrams in Mermaid, never ASCII art
+alwaysApply: true
+---
+
+# Diagrams must be Mermaid
+
+In this repo (docs, README, comments, and user-facing text), every diagram is a fenced `mermaid` block. Do not use ASCII boxes, arrows (`──►`, `└──`), PlantUML, Graphviz, or screenshots of topology.
+
+Follow Mermaid syntax that MkDocs can render:
+
+- No spaces in node IDs. Use camelCase or quotes on labels: `kafka[Kafka cluster telemetry]`
+- Quote edge labels that contain parentheses, slashes, or colons
+- Subgraphs need an ID and a label: `subgraph hosts [RHEL]`
+- Do not use `end` as a node ID
+
+```text
+# BAD
+RHEL rsyslog ──► ArcSight
+            └──► omkafka ──► rhel-system-logs
+
+# GOOD
+flowchart TB
+  rsyslog[rsyslog]
+  arcsight[ArcSight]
+  logs[rhel-system-logs]
+  rsyslog -->|"omfwd or omrelp"| arcsight
+  rsyslog -->|omkafka| logs
+```

@@ -1,0 +1,104 @@
+---
+- name: Install rsyslog, PCP, and exporters
+  ansible.builtin.dnf:
+    name: "{{ telemetry_packages }}"
+    state: present
+    update_cache: true
+
+- name: Check for kcat or kafkacat binary
+  ansible.builtin.shell: command -v kcat || command -v kafkacat
+  register: kcat_which
+  changed_when: false
+  failed_when: false
+
+- name: Install kcat from enabled repositories (AppStream)
+  ansible.builtin.dnf:
+    name: kcat
+    state: present
+  register: kcat_appstream
+  failed_when: false
+  when: kcat_which.rc != 0
+
+- name: Install kafkacat from enabled repositories (legacy package name)
+  ansible.builtin.dnf:
+    name: kafkacat
+    state: present
+  register: kcat_legacy
+  failed_when: false
+  when: kcat_which.rc != 0
+
+- name: Re-check kcat binary after repository install
+  ansible.builtin.shell: command -v kcat || command -v kafkacat
+  register: kcat_after_repos
+  changed_when: false
+  failed_when: false
+
+- name: Install EPEL release (kcat not in AppStream)
+  ansible.builtin.dnf:
+    name: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-{{ ansible_distribution_major_version }}.noarch.rpm"
+    state: present
+    disable_gpg_check: true
+  when:
+    - telemetry_enable_epel | bool
+    - kcat_after_repos.rc != 0
+
+- name: Install kcat from EPEL
+  ansible.builtin.dnf:
+    name: kcat
+    state: present
+  failed_when: false
+  when:
+    - telemetry_enable_epel | bool
+    - kcat_after_repos.rc != 0
+
+- name: Install kafkacat from EPEL (legacy name)
+  ansible.builtin.dnf:
+    name: kafkacat
+    state: present
+  failed_when: false
+  when:
+    - telemetry_enable_epel | bool
+    - kcat_after_repos.rc != 0
+
+- name: Re-check kcat binary after EPEL
+  ansible.builtin.shell: command -v kcat || command -v kafkacat
+  register: kcat_after_epel
+  changed_when: false
+  failed_when: false
+
+- name: Ensure python3-pip is present for kcat pip fallback
+  ansible.builtin.dnf:
+    name: python3-pip
+    state: present
+  when:
+    - telemetry_kcat_pip_fallback | bool
+    - kcat_after_epel.rc != 0
+
+- name: Install kafkacat via pip (last fallback; may not provide a kcat binary)
+  ansible.builtin.pip:
+    name: kafkacat
+    state: present
+  failed_when: false
+  when:
+    - telemetry_kcat_pip_fallback | bool
+    - kcat_after_epel.rc != 0
+
+- name: Locate kcat binary
+  ansible.builtin.shell: command -v kcat || command -v kafkacat
+  register: kcat_final
+  changed_when: false
+  failed_when: false
+
+- name: Fail if kcat is not installed
+  ansible.builtin.fail:
+    msg: >-
+      kcat/kafkacat is not available on this host. It is often missing from RHEL
+      AppStream. Re-run with -e telemetry_enable_epel=true and/or
+      -e telemetry_kcat_pip_fallback=true, install kcat from EPEL, or build
+      https://github.com/edenhill/kcat against librdkafka. pip/kafkacat is not
+      a guaranteed binary provider.
+  when: kcat_final.rc != 0
+
+- name: Set kcat_path from discovered binary
+  ansible.builtin.set_fact:
+    kcat_path: "{{ kcat_final.stdout | trim }}"

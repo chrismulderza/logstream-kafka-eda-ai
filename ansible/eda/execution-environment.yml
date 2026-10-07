@@ -1,0 +1,31 @@
+---
+# Decision / execution environment for Event-Driven Ansible (ansible-builder v3).
+# Base image matches AAP 2.6 (required on OCP 4.21; also valid on 4.20).
+# For AAP 2.5 on OCP 4.20 only, use ansible-automation-platform-25/de-minimal-rhel9.
+#
+# Collections: ansible.eda, community.general
+# Python: aiokafka, requests, numpy  (see requirements.yml / requirements.txt)
+#
+# Build:
+#   ansible-builder build -f execution-environment.yml -t logstream-eda-de:latest
+#
+# de-minimal already ships ansible.eda. If the build fails on reinstall, add:
+#   dependencies.exclude.all_from_collections: [ansible.eda]
+#
+# For automation controller job templates, swap the base image to
+# ee-minimal-rhel9 / ee-supported-rhel9 (playbooks do not need the DE JRE).
+
+version: 3
+
+images:
+  base_image:
+    name: registry.redhat.io/ansible-automation-platform-26/de-minimal-rhel9:latest
+
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt
+  python_interpreter:
+    package_system: python3.11
+
+options:
+  package_manager_path: /usr/bin/microdnf

@@ -1,0 +1,30 @@
+---
+- name: Check whether firewalld is running
+  ansible.builtin.command: systemctl is-active firewalld
+  register: firewalld_active
+  changed_when: false
+  failed_when: false
+
+- name: Allow remote pmcd (44321/tcp) when PCP is collected off-host
+  ansible.posix.firewalld:
+    port: 44321/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - pcp_expose_remote | bool
+    - firewalld_active.stdout == 'active'
+
+- name: Allow remote pmproxy (44322/tcp) when PCP is collected off-host
+  ansible.posix.firewalld:
+    port: 44322/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - pcp_expose_remote | bool
+    - firewalld_active.stdout == 'active'
+
+# Outbound TCP 443 to the Kafka bootstrap Route is required. Default firewalld
+# zone policy already allows egress; no inbound 9094/443 Kafka listener is opened
+# on the RHEL host.

@@ -1,0 +1,25 @@
+---
+# Playbook-only extra vars (ansible-playbook -e @vars/remediation.example.yml).
+# For the rulebook, prefer extra_vars.example.yml (includes Kafka settings).
+# All destructive flags default false.
+
+allow_service_restart: false
+service_name: ""
+restart_max_attempts: 3
+allow_drop_caches: false
+allow_firewall_ban: false
+allow_selinux_module: false
+allow_lb_isolate: false
+lb_isolate_command: ""
+allow_ipmi_reboot: false
+allow_nmcli_reset: false
+nmcli_connection: ""
+require_change_ticket: false
+change_ticket_id: ""
+package_baseline_file: ""
+allow_podman_prune: false
+allow_lvextend: false
+vg_name: ""
+lv_path: ""
+size: ""
+target_host: rhel-app-01

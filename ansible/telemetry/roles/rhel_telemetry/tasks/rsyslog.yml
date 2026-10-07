@@ -1,0 +1,161 @@
+---
+# Kafka is an *additional* rsyslog destination. Never replace /etc/rsyslog.conf
+# or existing ArcSight / SIEM drop-ins. See docs/04-rhel-telemetry.md.
+
+- name: Refuse to write Kafka config over /etc/rsyslog.conf
+  ansible.builtin.assert:
+    that:
+      - rsyslog_kafka_conf != '/etc/rsyslog.conf'
+      - "'/etc/rsyslog.d/' in rsyslog_kafka_conf"
+    fail_msg: >-
+      rsyslog_kafka_conf must be a drop-in under /etc/rsyslog.d/ so existing
+      ArcSight (or other SIEM) configuration in /etc/rsyslog.conf is preserved.
+
+- name: Ensure rsyslog.d exists
+  ansible.builtin.file:
+    path: /etc/rsyslog.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: List existing rsyslog drop-ins
+  ansible.builtin.find:
+    paths: /etc/rsyslog.d
+    patterns: "*.conf"
+    file_type: file
+  register: rsyslog_dropins_before
+
+- name: Identify ArcSight / existing SIEM drop-ins
+  ansible.builtin.set_fact:
+    # Product name is ArcSight. Also match misspelled drop-in filenames (arcsite).
+    rsyslog_arcsight_dropins: "{{ rsyslog_dropins_before.files | map(attribute='path') | select('regex', '(?i)(arcsight|arcsite|cef|smartconnector)') | list }}"
+
+- name: Show preserved ArcSight / SIEM drop-ins
+  ansible.builtin.debug:
+    msg: >-
+      Existing rsyslog.d files will be left unchanged:
+      {{ rsyslog_dropins_before.files | map(attribute='path') | reject('equalto', rsyslog_kafka_conf) | list | join(', ') | default('(none)', true) }}.
+      Detected ArcSight-style names:
+      {{ rsyslog_arcsight_dropins | join(', ') | default('(none named ArcSight)', true) }}.
+      This role only writes {{ rsyslog_kafka_conf }} (no stop/discard).
+
+- name: Snapshot checksums of rsyslog files this role does not own
+  ansible.builtin.shell: |
+    set -euo pipefail
+    skip="$(basename '{{ rsyslog_kafka_conf }}')"
+    {
+      if [ -f /etc/rsyslog.conf ]; then sha256sum /etc/rsyslog.conf; fi
+      find /etc/rsyslog.d -maxdepth 1 -type f -name '*.conf' -print \
+        | awk -v skip="$skip" -F/ '{print $NF " " $0}' \
+        | while read -r base path; do
+            [ "$base" = "$skip" ] && continue
+            {% for p in rsyslog_legacy_kafka_confs %}
+            [ "$base" = "$(basename '{{ p }}')" ] && continue
+            {% endfor %}
+            sha256sum "$path"
+          done
+    } | sort
+  args:
+    executable: /bin/bash
+  register: rsyslog_snap_before
+  changed_when: false
+
+- name: Detect discard rules that would skip omkafka
+  ansible.builtin.shell: |
+    set -e
+    kafka_base="$(basename '{{ rsyslog_kafka_conf }}')"
+    early=""
+    for f in /etc/rsyslog.conf /etc/rsyslog.d/*.conf; do
+      [ -f "$f" ] || continue
+      base="$(basename "$f")"
+      [ "$base" = "$kafka_base" ] && continue
+      if grep -Eq '(^|[[:space:]])stop([[:space:]]|;|$)|[[:space:]]&[[:space:]]~' "$f"; then
+        if [ "$f" = "/etc/rsyslog.conf" ] || [ "$base" \< "$kafka_base" ]; then
+          early="${early}${f} "
+        fi
+      fi
+    done
+    if [ -n "$early" ]; then
+      printf '%s\n' "$early"
+      exit 2
+    fi
+    exit 0
+  args:
+    executable: /bin/bash
+  register: rsyslog_early_stop
+  changed_when: false
+  failed_when: false
+
+- name: Fail when an earlier rsyslog rule would stop before Kafka
+  ansible.builtin.fail:
+    msg: >-
+      Found `stop` or `& ~` in {{ rsyslog_early_stop.stdout | trim }} which
+      loads before {{ rsyslog_kafka_conf }}. That discard would prevent omkafka
+      from seeing messages. Keep the ArcSight forwarding file. Remove or move
+      the discard so it runs *after* both ArcSight and Kafka, or set
+      rsyslog_kafka_conf to a name that sorts before the discard file
+      (for example /etc/rsyslog.d/00-omkafka-additional.conf).
+  when:
+    - rsyslog_fail_on_early_stop | bool
+    - rsyslog_early_stop.rc | default(0) == 2
+
+- name: Install additional omkafka drop-in (does not replace ArcSight)
+  ansible.builtin.template:
+    src: omkafka-additional.conf.j2
+    dest: "{{ rsyslog_kafka_conf }}"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart rsyslog
+
+- name: Remove legacy Kafka drop-in names from this pack (avoid double omkafka load)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ rsyslog_legacy_kafka_confs }}"
+  when: item != rsyslog_kafka_conf
+  notify: Restart rsyslog
+
+- name: Validate rsyslog configuration
+  ansible.builtin.command:
+    cmd: rsyslogd -N1
+  changed_when: false
+
+- name: Re-snapshot checksums of rsyslog files this role does not own
+  ansible.builtin.shell: |
+    set -euo pipefail
+    skip="$(basename '{{ rsyslog_kafka_conf }}')"
+    {
+      if [ -f /etc/rsyslog.conf ]; then sha256sum /etc/rsyslog.conf; fi
+      find /etc/rsyslog.d -maxdepth 1 -type f -name '*.conf' -print \
+        | awk -v skip="$skip" -F/ '{print $NF " " $0}' \
+        | while read -r base path; do
+            [ "$base" = "$skip" ] && continue
+            {% for p in rsyslog_legacy_kafka_confs %}
+            [ "$base" = "$(basename '{{ p }}')" ] && continue
+            {% endfor %}
+            sha256sum "$path"
+          done
+    } | sort
+  args:
+    executable: /bin/bash
+  register: rsyslog_snap_after
+  changed_when: false
+
+- name: Fail if existing rsyslog or ArcSight configuration changed
+  ansible.builtin.fail:
+    msg: >-
+      Checksums of /etc/rsyslog.conf or pre-existing /etc/rsyslog.d drop-ins
+      changed. Kafka onboarding must only add {{ rsyslog_kafka_conf }}.
+      Before:
+      {{ rsyslog_snap_before.stdout }}
+      After:
+      {{ rsyslog_snap_after.stdout }}
+  when: rsyslog_snap_after.stdout != rsyslog_snap_before.stdout
+
+- name: Enable and start rsyslog
+  ansible.builtin.service:
+    name: rsyslog
+    enabled: true
+    state: started

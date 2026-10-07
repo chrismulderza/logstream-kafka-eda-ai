@@ -1,0 +1,23 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: controller
+  namespace: logstream-kafka
+  labels:
+    strimzi.io/cluster: telemetry
+spec:
+  replicas: 3
+  roles:
+    - controller
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 20Gi
+        deleteClaim: false
+        # Shared KRaft metadata on this volume (required for controller-only pools).
+        kraftMetadata: shared
+        # class: ${STORAGE_CLASS}
+        # Uncomment and set to a cluster StorageClass (for example gp3-csi).
+        # Omit class to use the OpenShift default StorageClass.

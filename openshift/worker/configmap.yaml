@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: predictive-ai-worker
+  namespace: logstream-kafka
+  labels:
+    app.kubernetes.io/name: predictive-ai-worker
+    app.kubernetes.io/part-of: logstream-kafka
+    app.kubernetes.io/component: stream-worker
+data:
+  KAFKA_BOOTSTRAP_SERVERS: telemetry-kafka-plain-bootstrap.logstream-kafka.svc:9092
+  KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+  KAFKA_CONSUME_TOPICS: rhel-pcp-metrics,raw-metrics
+  KAFKA_PRODUCE_TOPIC: enriched-events
+  KAFKA_CONSUMER_GROUP: stream-worker
+  KAFKA_AUTO_OFFSET_RESET: latest
+  KAFKA_CLIENT_ID: predictive-ai-worker
+  # Leave INFERENCE_BASE_URL empty to emit predictive metric alerts without LLM.
+  # Decision matrix (choose one; there is no project default):
+  #   vLLM:    http://vllm.<vllm-namespace>.svc:8000/v1
+  #   RHOAI:   https://<inference-service-route>/v1
+  #   external OpenAI-compatible: https://api.example.com/v1
+  INFERENCE_BASE_URL: ""
+  INFERENCE_MODEL: default
+  INFERENCE_TIMEOUT_SECONDS: "15"
+  INFERENCE_MAX_TOKENS: "400"
+  WINDOW_SECONDS: "900"
+  MIN_SAMPLES: "4"
+  TTE_ALERT_THRESHOLD_SECONDS: "3600"
+  ALERT_COOLDOWN_SECONDS: "300"
+  HEALTH_BIND: 0.0.0.0
+  HEALTH_PORT: "8080"
+  LOG_LEVEL: INFO
+  CLASSIFY_LOGS: "false"
+  LLM_ON_METRIC_ALERTS: "true"

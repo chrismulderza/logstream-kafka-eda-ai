@@ -1,0 +1,9 @@
+---
+- name: Onboard RHEL hosts for Kafka telemetry
+  hosts: rhel_telemetry
+  become: true
+  gather_facts: true
+  collections:
+    - ansible.posix
+  roles:
+    - role: "{{ playbook_dir }}/../roles/rhel_telemetry"

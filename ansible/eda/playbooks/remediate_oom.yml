@@ -1,0 +1,126 @@
+---
+# Diagnostic collection after an OOM event. Service restart is gated.
+#
+# Extra vars:
+#   target_host             optional inventory host/group (default: rhel_telemetry)
+#   allow_service_restart   default false
+#   service_name            required when allow_service_restart is true
+
+- name: Remediate OOM on RHEL endpoints
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: true
+  gather_facts: true
+  vars:
+    allow_service_restart: false
+    allow_drop_caches: false
+    service_name: ""
+    diagnostic_dir: /var/tmp/eda-oom-diagnostics
+  tasks:
+    - name: Require service_name when restart is requested
+      ansible.builtin.assert:
+        that:
+          - not (allow_service_restart | bool) or (service_name | default('') | length > 0)
+        fail_msg: >-
+          allow_service_restart is true but service_name is empty.
+          Refusing to restart an unspecified unit.
+
+    - name: Create diagnostic directory
+      ansible.builtin.file:
+        path: "{{ diagnostic_dir }}"
+        state: directory
+        mode: "0750"
+        owner: root
+        group: root
+
+    - name: Capture kernel ring buffer (dmesg)
+      ansible.builtin.shell: |
+        set -o pipefail
+        dmesg --ctime --color=never | tail -n 400
+      args:
+        executable: /bin/bash
+      register: oom_dmesg
+      changed_when: false
+      failed_when: false
+
+    - name: Persist dmesg snapshot
+      ansible.builtin.copy:
+        dest: "{{ diagnostic_dir }}/dmesg.txt"
+        content: "{{ oom_dmesg.stdout | default('') }}\n"
+        mode: "0640"
+
+    - name: Capture kernel and OOM-related journal
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - --no-pager
+          - -k
+          - -n
+          - "200"
+          - -o
+          - short-iso
+      register: oom_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Persist journal snapshot
+      ansible.builtin.copy:
+        dest: "{{ diagnostic_dir }}/journal-kernel.txt"
+        content: "{{ oom_journal.stdout | default('') }}\n"
+        mode: "0640"
+
+    - name: Capture memory summary
+      ansible.builtin.command:
+        argv:
+          - free
+          - -h
+      register: oom_free
+      changed_when: false
+
+    - name: Read meminfo
+      ansible.builtin.slurp:
+        src: /proc/meminfo
+      register: oom_meminfo
+
+    - name: Persist memory snapshot
+      ansible.builtin.copy:
+        dest: "{{ diagnostic_dir }}/memory.txt"
+        content: |
+          === free -h ===
+          {{ oom_free.stdout | default('') }}
+
+          === ansible_memory_mb ===
+          {{ ansible_facts['memory_mb'] | default({}) | to_nice_yaml }}
+
+          === /proc/meminfo ===
+          {{ oom_meminfo.content | b64decode }}
+        mode: "0640"
+
+    - name: Show OOM diagnostic summary
+      ansible.builtin.debug:
+        msg:
+          hostname: "{{ inventory_hostname }}"
+          mem_total_mb: "{{ ansible_facts['memory_mb']['total'] | default('unknown') }}"
+          mem_free_mb: "{{ ansible_facts['memory_mb']['nocache']['free'] | default('unknown') }}"
+          diagnostic_dir: "{{ diagnostic_dir }}"
+          restart_gated: "{{ not (allow_service_restart | bool) }}"
+          drop_caches_gated: "{{ not (allow_drop_caches | bool) }}"
+          service_name: "{{ service_name | default('') }}"
+
+    - name: Drop page caches (explicit opt-in only)
+      ansible.builtin.command:
+        argv: [sync]
+      when: allow_drop_caches | bool
+
+    - name: Write drop_caches
+      ansible.builtin.copy:
+        dest: /proc/sys/vm/drop_caches
+        content: "3\n"
+      when: allow_drop_caches | bool
+
+    - name: Restart named service (explicit opt-in only)
+      ansible.builtin.service:
+        name: "{{ service_name }}"
+        state: restarted
+      when:
+        - allow_service_restart | bool
+        - service_name | default('') | length > 0

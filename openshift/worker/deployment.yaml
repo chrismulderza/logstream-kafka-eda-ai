@@ -1,0 +1,88 @@
+# Deployment for the predictive AI stream worker.
+#
+# SCC: designed for OpenShift restricted-v2 (default on OCP 4.20+):
+#   - runs as non-root (arbitrary UID assigned by OpenShift)
+#   - allowPrivilegeEscalation: false
+#   - ALL capabilities dropped
+#   - seccompProfile: RuntimeDefault
+#   - no hostPath, no privileged, no hostNetwork
+# Do not add an SCC that relaxes restricted-v2 unless a real blocker appears.
+#
+# Replace IMAGE_REF with the pulled image (internal registry or external).
+# Replicas stay at 1 because TTE windows are in-memory per process. Scale only
+# if producers key metric records by host so each host stays on one partition.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictive-ai-worker
+  namespace: logstream-kafka
+  labels:
+    app.kubernetes.io/name: predictive-ai-worker
+    app.kubernetes.io/part-of: logstream-kafka
+    app.kubernetes.io/component: stream-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: predictive-ai-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: predictive-ai-worker
+        app.kubernetes.io/part-of: logstream-kafka
+        app.kubernetes.io/component: stream-worker
+    spec:
+      serviceAccountName: predictive-ai-worker
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: IMAGE_REF
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: health
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: HOME
+              value: /tmp
+          envFrom:
+            - configMapRef:
+                name: predictive-ai-worker
+            - secretRef:
+                name: predictive-ai-worker
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

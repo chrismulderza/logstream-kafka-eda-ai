@@ -1,0 +1,109 @@
+---
+# Storage pressure mitigation. Destructive steps are independently gated.
+#
+# Extra vars (all destructive flags default false):
+#   allow_podman_prune   run `podman system prune --force` when true
+#   allow_lvextend       run lvextend when true AND vg_name, lv_path, size are set
+#   vg_name, lv_path, size   required together for LVM growth
+#   logrotate_conf       default /etc/logrotate.conf
+
+- name: Proactive disk mitigation
+  hosts: "{{ target_host | default('rhel_telemetry') }}"
+  become: true
+  gather_facts: true
+  vars:
+    allow_podman_prune: false
+    allow_lvextend: false
+    vg_name: ""
+    lv_path: ""
+    size: ""
+    logrotate_conf: /etc/logrotate.conf
+  tasks:
+    - name: Reject incomplete LVM growth requests
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (allow_lvextend | bool)
+            or (
+              (vg_name | default('') | length > 0)
+              and (lv_path | default('') | length > 0)
+              and (size | default('') | length > 0)
+            )
+        fail_msg: >-
+          allow_lvextend is true but vg_name, lv_path, and size are not all set.
+          Refusing to run lvextend.
+
+    - name: Record filesystem usage before mitigation
+      ansible.builtin.command:
+        argv:
+          - df
+          - -hT
+      register: disk_before
+      changed_when: false
+
+    - name: Show pre-mitigation disk usage
+      ansible.builtin.debug:
+        var: disk_before.stdout_lines
+
+    - name: Force logrotate
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/logrotate
+          - --force
+          - "{{ logrotate_conf }}"
+      register: logrotate_result
+      changed_when: logrotate_result.rc == 0
+      failed_when: logrotate_result.rc != 0
+
+    - name: Prune unused Podman storage (explicit opt-in only)
+      ansible.builtin.command:
+        argv:
+          - podman
+          - system
+          - prune
+          - --force
+      register: podman_prune
+      changed_when: podman_prune.rc == 0
+      when: allow_podman_prune | bool
+
+    - name: Skip Podman prune (safety gate closed)
+      ansible.builtin.debug:
+        msg: "allow_podman_prune is false; skipping podman system prune."
+      when: not (allow_podman_prune | bool)
+
+    - name: Extend logical volume and grow filesystem (explicit opt-in only)
+      ansible.builtin.command:
+        argv:
+          - lvextend
+          - --size
+          - "{{ size }}"
+          - --resizefs
+          - "{{ lv_path }}"
+      register: lvextend_result
+      changed_when: lvextend_result.rc == 0
+      when:
+        - allow_lvextend | bool
+        - vg_name | default('') | length > 0
+        - lv_path | default('') | length > 0
+        - size | default('') | length > 0
+
+    - name: Skip lvextend (safety gate closed or parameters unset)
+      ansible.builtin.debug:
+        msg: >-
+          lvextend skipped. allow_lvextend={{ allow_lvextend | bool }},
+          vg_name={{ vg_name | default('') }},
+          lv_path={{ lv_path | default('') }},
+          size={{ size | default('') }}.
+      when: not (allow_lvextend | bool)
+
+    - name: Record filesystem usage after mitigation
+      ansible.builtin.command:
+        argv:
+          - df
+          - -hT
+      register: disk_after
+      changed_when: false
+
+    - name: Show post-mitigation disk usage
+      ansible.builtin.debug:
+        var: disk_after.stdout_lines

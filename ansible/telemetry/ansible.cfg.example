@@ -1,0 +1,11 @@
+[defaults]
+inventory = inventory/hosts.yml
+roles_path = roles
+interpreter_python = auto_silent
+retry_files_enabled = false
+stdout_callback = yaml
+host_key_checking = true
+
+[privilege_escalation]
+become = true
+become_method = sudo

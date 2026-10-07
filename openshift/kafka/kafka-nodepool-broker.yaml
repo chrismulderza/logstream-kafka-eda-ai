@@ -1,0 +1,21 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: broker
+  namespace: logstream-kafka
+  labels:
+    strimzi.io/cluster: telemetry
+spec:
+  replicas: 3
+  roles:
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 100Gi
+        deleteClaim: false
+        # class: ${STORAGE_CLASS}
+        # Uncomment and set to a cluster StorageClass (for example gp3-csi).
+        # Omit class to use the OpenShift default StorageClass.

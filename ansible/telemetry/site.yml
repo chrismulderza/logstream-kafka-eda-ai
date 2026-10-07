@@ -1,0 +1,5 @@
+---
+# Entry point. Run from ansible/telemetry/:
+#   ansible-playbook -i inventory/hosts.yml site.yml
+- name: Import RHEL telemetry onboarding
+  ansible.builtin.import_playbook: playbooks/onboard.yml

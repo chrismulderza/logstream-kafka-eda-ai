@@ -1,0 +1,61 @@
+---
+# rsyslog_t cannot name_connect to http_port_t (TCP 443) by default.
+# This module is additive: it does not remove ArcSight/syslog port 514 allows.
+# Do NOT set logging_syslogd_can_send_mail — that boolean only relates to
+# port 25/smtp and is not a Kafka/omkafka fix.
+# Prefer the targeted module in files/rsyslog_omkafka.te.
+# nis_enabled is a last-resort boolean (overly broad).
+
+- name: Install SELinux policy build tools
+  ansible.builtin.dnf:
+    name:
+      - policycoreutils
+      - policycoreutils-python-utils
+      - libselinux-utils
+      - checkpolicy
+    state: present
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - telemetry_selinux_install_module | bool
+
+- name: Stage rsyslog_omkafka SELinux policy source
+  ansible.builtin.copy:
+    src: rsyslog_omkafka.te
+    dest: /var/tmp/rsyslog_omkafka.te
+    mode: "0644"
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - telemetry_selinux_install_module | bool
+
+- name: Compile rsyslog_omkafka SELinux module
+  ansible.builtin.command:
+    cmd: checkmodule -M -m -o /var/tmp/rsyslog_omkafka.mod /var/tmp/rsyslog_omkafka.te
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - telemetry_selinux_install_module | bool
+
+- name: Package rsyslog_omkafka SELinux module
+  ansible.builtin.command:
+    cmd: semodule_package -o /var/tmp/rsyslog_omkafka.pp -m /var/tmp/rsyslog_omkafka.mod
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - telemetry_selinux_install_module | bool
+
+- name: Install rsyslog_omkafka SELinux module
+  ansible.builtin.command:
+    cmd: semodule -i /var/tmp/rsyslog_omkafka.pp
+  register: semodule_install
+  changed_when: semodule_install.rc == 0
+  failed_when: semodule_install.rc != 0
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - telemetry_selinux_install_module | bool
+
+- name: Enable nis_enabled (last resort only; not the preferred Kafka fix)
+  ansible.posix.seboolean:
+    name: nis_enabled
+    state: true
+    persistent: true
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - telemetry_selinux_nis_fallback | bool
