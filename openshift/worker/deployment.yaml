@@ -1,4 +1,4 @@
-# Deployment for the predictive AI stream worker.
+# Deployment for the Quarkus predictive AI stream worker.
 #
 # SCC: designed for OpenShift restricted-v2 (default on OCP 4.20+):
 #   - runs as non-root (arbitrary UID assigned by OpenShift)
@@ -8,7 +8,8 @@
 #   - no hostPath, no privileged, no hostNetwork
 # Do not add an SCC that relaxes restricted-v2 unless a real blocker appears.
 #
-# Replace IMAGE_REF with the pulled image (internal registry or external).
+# Image: built by BuildConfig into ImageStreamTag predictive-ai-worker:latest.
+# image.openshift.io/triggers rolls the Deployment when that tag updates.
 # Replicas stay at 1 because TTE windows are in-memory per process. Scale only
 # if producers key metric records by host so each host stays on one partition.
 apiVersion: apps/v1
@@ -20,6 +21,9 @@ metadata:
     app.kubernetes.io/name: predictive-ai-worker
     app.kubernetes.io/part-of: logstream-kafka
     app.kubernetes.io/component: stream-worker
+  annotations:
+    # Auto-rollout when BuildConfig pushes a new predictive-ai-worker:latest.
+    image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"predictive-ai-worker:latest","namespace":"logstream-kafka"},"fieldPath":"spec.template.spec.containers[?(@.name==\"worker\")].image","pause":"false"}]'
 spec:
   replicas: 1
   selector:
@@ -40,7 +44,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: worker
-          image: IMAGE_REF
+          image: image-registry.openshift-image-registry.svc:5000/logstream-kafka/predictive-ai-worker:latest
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -56,27 +60,32 @@ spec:
           env:
             - name: HOME
               value: /tmp
+            # Cap heap relative to cgroup limit (1Gi) for the Quarkus JVM.
+            - name: JAVA_OPTS_APPEND
+              value: -XX:MaxRAMPercentage=75.0
           envFrom:
             - configMapRef:
                 name: predictive-ai-worker
             - secretRef:
                 name: predictive-ai-worker
+          # Probes use app custom paths /healthz and /readyz (same contract as
+          # before), not SmallRye defaults /q/health/live and /q/health/ready.
           livenessProbe:
             httpGet:
               path: /healthz
               port: health
-            initialDelaySeconds: 10
+            initialDelaySeconds: 20
             periodSeconds: 20
           readinessProbe:
             httpGet:
               path: /readyz
               port: health
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 512Mi
             limits:
               cpu: "1"
               memory: 1Gi

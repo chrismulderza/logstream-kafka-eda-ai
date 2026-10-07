@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: logstream-kafka
 resources:
   - serviceaccount.yaml
+  - imagestream.yaml
+  - buildconfig.yaml
   - configmap.yaml
   - secret.yaml
   - deployment.yaml

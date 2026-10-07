@@ -43,7 +43,7 @@ Kafka
 | [`ansible/telemetry/`](ansible/telemetry/) | Dual-home rsyslog + PCP exporters |
 | [`ansible/eda/`](ansible/eda/) | Rulebooks, gated playbooks, EE, example vars |
 | [`extensions/eda/rulebooks/`](extensions/eda/rulebooks/) | AAP-scanned rulebook copies |
-| [`worker/`](worker/) + [`openshift/worker/`](openshift/worker/) | Optional predictive stream worker |
+| [`worker/`](worker/) + [`openshift/worker/`](openshift/worker/) | Optional Quarkus predictive worker (`mise` toolchain, Dev Services, OpenShift BuildConfig) |
 | [`scripts/`](scripts/) | Synthetic tests and pipeline checks |
 | [`siem/`](siem/) + [`grafana/`](grafana/) | Parallel SIEM consumers and dashboards |
 

@@ -1,0 +1,60 @@
+# Developer toolchain for the Quarkus predictive worker.
+# Install mise: https://mise.jdx.dev/getting-started.html
+# Then from this directory:  mise trust && mise install
+#
+# Versions align with pom.xml (Java 21, Quarkus platform 3.40.1).
+# Daily builds still use ./mvnw; the Quarkus CLI is optional helper tooling.
+#
+# Not pinned here (OS / desktop installs):
+#   - Podman (required) — Kafka Dev Services / Testcontainers use Podman only
+#   - kcat              — optional; inject prefers uv + kafka-python
+#   - oc                — only for cluster port-forward workflows
+
+[tools]
+java = "temurin-21.0.12+8.0.LTS"
+maven = "3.9.16"
+quarkus = "3.40.1"
+python = "3.12.15"
+uv = "0.12.23"
+
+[tasks.dev]
+description = "Quarkus continuous development mode (Kafka Dev Services via Podman)"
+dir = "{{ config_root }}"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=scripts/podman-env.sh
+source "{{ config_root }}/scripts/podman-env.sh"
+exec ./mvnw quarkus:dev
+"""
+
+[tasks.test]
+description = "Run unit tests (Dev Services Kafka via Podman)"
+dir = "{{ config_root }}"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+source "{{ config_root }}/scripts/podman-env.sh"
+exec ./mvnw -B test
+"""
+
+[tasks.package]
+description = "Package the worker JAR (tests use Podman Dev Services)"
+dir = "{{ config_root }}"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+source "{{ config_root }}/scripts/podman-env.sh"
+exec ./mvnw -B package
+"""
+
+[tasks.inject-metrics]
+description = "Inject rising PCP samples via uv + kafka-python (discovers Podman Dev Services)"
+# Pass script flags after --  e.g.  mise run inject-metrics -- --consume
+dir = "{{ config_root }}"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+source "{{ config_root }}/scripts/podman-env.sh"
+uv run --with kafka-python "{{ config_root }}/../scripts/inject_worker_metrics.py" "$@"
+"""

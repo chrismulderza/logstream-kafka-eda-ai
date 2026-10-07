@@ -24,7 +24,7 @@ Platform, logging, and automation administrators who operate:
 - RHEL **8.10 / 9** endpoints
 - Ansible Automation Platform **2.6** Event-Driven Ansible (or **2.5** only on OCP 4.20), **or** `ansible-rulebook` on a jump host
 
-You should be comfortable applying Operator manifests, running Ansible against RHEL, and validating with `oc`, `kcat`, and `logger`.
+You should be comfortable applying Operator manifests, running Ansible against RHEL, and validating with `oc`, `kcat`, and `logger`. For optional Quarkus worker development, follow [chapter 6 §6.2](06-optional-predictive-ai-worker.md#62-local-development-quarkus-dev-mode): workstation deps for **macOS / Fedora / RHEL**, `mise` + **Podman** (not Docker Desktop), first-run `mise run dev`, and inject-script expected output.
 
 ## How the pipeline fits together
 
@@ -89,7 +89,7 @@ Changing a name means updating every producer and consumer that uses it. Copy th
 | [`ansible/telemetry/`](../ansible/telemetry/) | Role that adds `omkafka` + PCP exporters; never replaces ArcSight drop-ins |
 | [`ansible/eda/`](../ansible/eda/) | Rulebooks, gated playbooks, EE definition, example inventory and extra vars |
 | [`extensions/eda/rulebooks/`](../extensions/eda/rulebooks/) | AAP-scanned copies of the AAP rulebooks |
-| [`worker/`](../worker/) + [`openshift/worker/`](../openshift/worker/) | Optional predictive AI stream worker |
+| [`worker/`](../worker/) + [`openshift/worker/`](../openshift/worker/) | Optional Quarkus predictive stream worker (ImageStream + BuildConfig) |
 | [`scripts/`](../scripts/) | Synthetic OOM inject, storage-fill test, pipeline checks |
 | [`siem/`](../siem/) + [`grafana/`](../grafana/) | Parallel SIEM consumers and Grafana dashboards |
 

@@ -20,9 +20,12 @@ Companion SIEM and Grafana work is in [SIEM and dashboards](08-siem-dashboards.m
 
 Scripts in this repository:
 
-- [scripts/inject-oom-log.sh](../scripts/inject-oom-log.sh) — synthetic OOM syslog
-- [scripts/storage-fill-test.sh](../scripts/storage-fill-test.sh) — `create` / `cleanup` / `status` for `/var/log/test_fill.img`
-- [scripts/verify-pipeline.sh](../scripts/verify-pipeline.sh) — `oc` / `kcat` placeholders
+| Script | Where to run | Tools required on that machine |
+| --- | --- | --- |
+| [scripts/inject-oom-log.sh](../scripts/inject-oom-log.sh) | Dual-homed **RHEL** endpoint | `logger` (util-linux) |
+| [scripts/storage-fill-test.sh](../scripts/storage-fill-test.sh) | Lab **RHEL** host with free space on `/var/log` | `fallocate`, `df`, `rm` |
+| [scripts/verify-pipeline.sh](../scripts/verify-pipeline.sh) | Workstation or jump host with cluster access | `oc` and/or `kcat` (script prints placeholders if missing) |
+| [scripts/inject-worker-metrics.sh](../scripts/inject-worker-metrics.sh) / [inject_worker_metrics.py](../scripts/inject_worker_metrics.py) | **Developer workstation** (Quarkus Dev Services) | macOS/Fedora/RHEL setup, `mise run inject-metrics -- --consume`, and expected `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` output — [chapter 6 §6.2](06-optional-predictive-ai-worker.md#62-local-development-quarkus-dev-mode) |
 
 Dashboards used during validation:
 
@@ -61,7 +64,7 @@ Print required group names:
 Make scripts executable once:
 
 ```bash
-chmod +x scripts/inject-oom-log.sh scripts/storage-fill-test.sh scripts/verify-pipeline.sh
+chmod +x scripts/inject-oom-log.sh scripts/storage-fill-test.sh scripts/verify-pipeline.sh scripts/inject-worker-metrics.sh
 ```
 
 ## 7.4 Baseline cluster and topic inspection

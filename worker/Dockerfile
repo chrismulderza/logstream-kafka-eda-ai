@@ -1,31 +1,34 @@
-# Multi-stage UBI9 image for the predictive AI stream worker.
-# Build (example):
-#   podman build -t IMAGE_REF -f worker/Dockerfile worker
-FROM registry.access.redhat.com/ubi9/python-311:1 AS builder
+# Multi-stage UBI9 image for the predictive AI stream worker (Quarkus JVM).
+# Build (from worker/):
+#   podman build -t IMAGE_REF -f Dockerfile .
+FROM registry.access.redhat.com/ubi9/openjdk-21:1.21 AS build
 
-USER 0
+USER root
 WORKDIR /build
-COPY requirements.txt .
-RUN python3 -m venv /opt/venv \
-    && /opt/venv/bin/pip install --upgrade pip \
-    && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-FROM registry.access.redhat.com/ubi9/python-311:1
+COPY pom.xml .
+COPY mvnw .
+COPY .mvn .mvn
+COPY src src
 
-USER 0
-ENV PATH="/opt/venv/bin:${PATH}" \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    HOME=/tmp
+RUN chmod +x mvnw \
+    && ./mvnw -B -DskipTests package \
+    && mkdir -p /build/quarkus-app \
+    && cp -r target/quarkus-app/. /build/quarkus-app/
 
-COPY --from=builder /opt/venv /opt/venv
-WORKDIR /opt/app-root/src
-COPY stream_worker ./stream_worker
+FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.21
 
-# OpenShift restricted-v2 assigns an arbitrary UID in the root group.
-RUN chgrp -R 0 /opt/app-root /opt/venv \
-    && chmod -R g=u /opt/app-root /opt/venv
+ENV LANGUAGE='en_US:en' \
+    HOME=/tmp \
+    JAVA_OPTS_APPEND="-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager" \
+    JAVA_APP_JAR="/deployments/quarkus-run.jar"
 
-USER 1001
+COPY --from=build --chown=185:0 /build/quarkus-app/lib/ /deployments/lib/
+COPY --from=build --chown=185:0 /build/quarkus-app/*.jar /deployments/
+COPY --from=build --chown=185:0 /build/quarkus-app/app/ /deployments/app/
+COPY --from=build --chown=185:0 /build/quarkus-app/quarkus/ /deployments/quarkus/
+
 EXPOSE 8080
-CMD ["python", "-m", "stream_worker"]
+USER 185
+
+ENTRYPOINT [ "/opt/jboss/container/java/run/run-java.sh" ]

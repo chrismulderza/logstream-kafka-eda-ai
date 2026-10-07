@@ -1,0 +1,54 @@
+# BuildConfig: continuous Docker builds of the Quarkus worker into ImageStream
+# predictive-ai-worker:latest.
+#
+# Git source builds (webhook / ConfigChange) use contextDir worker/ from main.
+# Binary builds also work without a push to GitHub:
+#   oc start-build predictive-ai-worker --from-dir=worker --follow
+#
+# After apply, set a real webhook secret, then configure the GitHub webhook URL:
+#   oc describe bc/predictive-ai-worker -n logstream-kafka
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: predictive-ai-worker
+  namespace: logstream-kafka
+  labels:
+    app.kubernetes.io/name: predictive-ai-worker
+    app.kubernetes.io/part-of: logstream-kafka
+    app.kubernetes.io/component: stream-worker
+spec:
+  runPolicy: Serial
+  successfulBuildsHistoryLimit: 5
+  failedBuildsHistoryLimit: 5
+  source:
+    type: Git
+    git:
+      uri: https://github.com/chrismulderza/logstream-kafka-eda-ai.git
+      ref: main
+    contextDir: worker
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  output:
+    to:
+      kind: ImageStreamTag
+      name: predictive-ai-worker:latest
+  resources:
+    requests:
+      cpu: "500m"
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  triggers:
+    - type: ConfigChange
+    - type: ImageChange
+    - type: GitHub
+      github:
+        # Replace CHANGE_ME before enabling the GitHub webhook.
+        secret: CHANGE_ME_GITHUB_WEBHOOK_SECRET
+    - type: Generic
+      generic:
+        # Optional: oc start-build with webhook, or curl the generic URL.
+        secret: CHANGE_ME_GENERIC_WEBHOOK_SECRET

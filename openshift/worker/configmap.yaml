@@ -1,3 +1,5 @@
+# Non-secret env for the Quarkus predictive AI stream worker (Java 21).
+# Keys map to worker/src/main/resources/application.properties.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,12 +17,12 @@ data:
   KAFKA_CONSUMER_GROUP: stream-worker
   KAFKA_AUTO_OFFSET_RESET: latest
   KAFKA_CLIENT_ID: predictive-ai-worker
-  # Leave INFERENCE_BASE_URL empty to emit predictive metric alerts without LLM.
+  # LLM off by default: omit INFERENCE_BASE_URL (do not set it to "").
   # Decision matrix (choose one; there is no project default):
   #   vLLM:    http://vllm.<vllm-namespace>.svc:8000/v1
   #   RHOAI:   https://<inference-service-route>/v1
   #   external OpenAI-compatible: https://api.example.com/v1
-  INFERENCE_BASE_URL: ""
+  # INFERENCE_BASE_URL: http://vllm.example.svc:8000/v1
   INFERENCE_MODEL: default
   INFERENCE_TIMEOUT_SECONDS: "15"
   INFERENCE_MAX_TOKENS: "400"

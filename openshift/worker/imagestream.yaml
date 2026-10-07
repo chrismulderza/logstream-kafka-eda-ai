@@ -1,0 +1,15 @@
+# ImageStream for the Quarkus predictive AI stream worker.
+# BuildConfig pushes to predictive-ai-worker:latest; the Deployment image trigger
+# rolls out when that tag changes.
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: predictive-ai-worker
+  namespace: logstream-kafka
+  labels:
+    app.kubernetes.io/name: predictive-ai-worker
+    app.kubernetes.io/part-of: logstream-kafka
+    app.kubernetes.io/component: stream-worker
+spec:
+  lookupPolicy:
+    local: false

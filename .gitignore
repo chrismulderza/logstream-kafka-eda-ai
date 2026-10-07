@@ -10,3 +10,12 @@ ansible/eda/inventory/hosts.yml
 openshift/worker/secret.yaml
 .env
 credentials.json
+
+# Quarkus / Maven (worker/)
+worker/target/
+worker/.quarkus/
+**/.idea/
+*.iml
+.classpath
+.project
+.settings/
