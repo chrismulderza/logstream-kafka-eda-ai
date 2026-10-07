@@ -15,6 +15,37 @@ Alert type string (do not change): `PREEMPTIVE_STORAGE_EXHAUSTION_RISK`.
 
 **Full workstation setup (macOS / Fedora / RHEL), first-run steps, inject scripts, and expected output:** [docs chapter 6 §6.2](../docs/06-optional-predictive-ai-worker.md#62-local-development-quarkus-dev-mode).
 
+## What inference does (and does not)
+
+Inference is **optional LLM enrichment**. It does **not** compute TTE or decide whether a storage alert fires — that is deterministic metrics math (`dUsed/dt`, TTE threshold, cooldown). The worker calls `POST {INFERENCE_BASE_URL}/chat/completions` (temperature `0`) and merges returned JSON onto events. If the call fails, the numeric alert is still published without LLM fields.
+
+There are **no hardcoded severity / score / root-cause rules** in code. Classification is model judgment under short system prompts and a fixed JSON schema ([`Prompts.java`](src/main/java/ai/logstream/worker/infer/Prompts.java)).
+
+### Prompt constraints
+
+| Path | When | Model is asked to return | Inputs |
+| --- | --- | --- | --- |
+| Metric alert enrichment | `LLM_ON_METRIC_ALERTS=true` after a TTE alert is built | `severity` ∈ `{WARNING, CRITICAL}`, `score` 0–100, `root_cause`, `summary`, `recommended_action` | host, instance, used, capacity, rate, TTE |
+| Log RCA | `CLASSIFY_LOGS=true` | `root_cause`, `subsystem`, `summary`, `recommended_action` | one RHEL syslog line (+ host/tag/facility) |
+| Log severity | `CLASSIFY_LOGS=true` | `severity` ∈ `{INFO, WARNING, CRITICAL}`, `score` 0–100, `rationale` | host, context, message |
+
+Extra instruction for RCA only: **do not invent host facts that are not in the message.** There is no coded map such as “TTE &lt; 10 → CRITICAL” or “used &gt; 80% → …”.
+
+### What inference does not change
+
+- Whether `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` is emitted (TTE math + threshold + cooldown).
+- Optional EDA matching today: rulebooks key on that alert type string, **not** on LLM `severity` / `score`.
+
+### Value of adding inference
+
+| Without LLM | With LLM |
+| --- | --- |
+| Precise TTE / used / rate on the event | Same numbers, plus human-oriented explanation |
+| Operators/SIEM see raw metrics | Narrative: likely cause, summary, suggested action |
+| EDA can still remediate on alert type | Same gate; LLM fields enrich people, tickets, SIEM, future policy |
+
+Treat LLM output as **annotation**, not a safety gate: scores are not reproducible policy, models can disagree, and empty inference must not block the deterministic alert.
+
 ## Quick start
 
 ### Dependencies

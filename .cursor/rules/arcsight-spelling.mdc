@@ -1,0 +1,8 @@
+---
+description: Keep ArcSight spelling correct in docs and prose
+alwaysApply: true
+---
+
+# ArcSight spelling
+
+Always write **ArcSight** (one word, capital S). Do not use "Arc Sight", "arcsight", or "ArcSite" in user-facing docs or README prose. Code identifiers may stay lowercase if already established.
