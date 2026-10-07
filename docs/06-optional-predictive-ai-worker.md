@@ -352,7 +352,7 @@ ollama pull granite3.3:2b
 ollama list   # expect granite3.3:2b
 ```
 
-Optional alternatives that also passed the worker JSON bench: `granite3.1-moe:3b`, `granite4:3b`, `granite3.3:8b`. Avoid `granite4.2:*` and `qwen3:*` with the current client (they often leave OpenAI `message.content` empty). Model comparison notes and raw scores: [below](#model-evaluation-notes) and [`docs/ollama-model-bench.json`](ollama-model-bench.json). Re-bench with:
+Optional alternatives that also passed the worker JSON bench: `granite3.1-moe:3b`, `granite4:3b`, `granite3.3:8b`. Avoid `granite4.2:*` and `qwen3:*` with the current client (they often leave OpenAI `message.content` empty). Full score/latency table: [Model evaluation results](#model-evaluation-results). Raw JSON: [`docs/ollama-model-bench.json`](ollama-model-bench.json). Re-bench with:
 
 ```bash
 python3 scripts/bench_ollama_inference.py granite3.3:2b
@@ -429,18 +429,27 @@ ollama list
 
 Unset inference env vars in your shell (`unset INFERENCE_BASE_URL INFERENCE_MODEL LLM_ON_METRIC_ALERTS`) before the next `mise run dev` if you want TTE-only mode again.
 
-#### Model evaluation notes
+#### Model evaluation results
 
-Benchmarked with [`scripts/bench_ollama_inference.py`](../scripts/bench_ollama_inference.py) (max score **17**). Prefer IBM Granite; pick the smallest perfect score that fits 16–24 GB.
+Benchmarked on a developer workstation with [`scripts/bench_ollama_inference.py`](../scripts/bench_ollama_inference.py) against the worker’s three prompts (metric alert, RCA, severity). Max score **17/17** = valid JSON in OpenAI `message.content`, required keys present, allowed `severity` enums, and integer `score` in 0–100. Latency is wall-clock seconds per call. Raw JSON: [`docs/ollama-model-bench.json`](ollama-model-bench.json).
 
-| Model | Disk | Score | Metric latency | Notes |
-| --- | --- | --- | --- | --- |
-| **`granite3.3:2b`** | 1.5 GB | **17/17** | ~2.4 s | **Default for local Ollama testing** |
-| `granite3.1-moe:3b` | 2.0 GB | **17/17** | ~3.0 s | Fast MoE alternative |
-| `granite4:3b` | 2.1 GB | **17/17** | ~5.0 s | Perfect; slightly slower |
-| `granite3.3:8b` | 4.9 GB | **17/17** | ~9.0 s | No quality gain vs 2b for this worker |
-| `llama3.2:3b` / `phi4-mini` / `qwen2.5:7b` | 2–5 GB | **17/17** | ~3–6 s | Non-IBM passers; use only if Granite unavailable |
-| `granite4.2:*` / `qwen3:8b` | — | ≤6/17 | — | Thinking often empties OpenAI `content` — skip |
+Prefer **IBM Granite** within a **16–24 GB** RAM class; default local model is the smallest perfect scorer: **`granite3.3:2b`**.
+
+| Model | Disk (approx.) | Score | Metric | RCA | Severity | Notes |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| **`granite3.3:2b`** | 1.5 GB | **17/17** | 2.4 s | 1.3 s | 0.8 s | **Recommended** — smallest IBM perfect score |
+| `granite3.1-moe:3b` | 2.0 GB | **17/17** | 3.0 s | 0.5 s | 0.5 s | Fast MoE; strong Granite alternative |
+| `llama3.2:3b` | 2.0 GB | **17/17** | 3.7 s | 1.2 s | 0.5 s | Non-IBM; severity sometimes under-scores OOM |
+| `phi4-mini` | 2.5 GB | **17/17** | 4.5 s | 1.6 s | 1.2 s | Non-IBM; often wraps JSON in markdown fences |
+| `granite4:3b` | 2.1 GB | **17/17** | 5.0 s | 1.8 s | 1.8 s | Perfect; slightly slower than 3.3:2b |
+| `qwen2.5:7b` | 4.7 GB | **17/17** | 6.2 s | 2.5 s | 1.7 s | Non-IBM; larger than needed |
+| `granite3.3:8b` | 4.9 GB | **17/17** | 9.0 s | 3.2 s | 3.1 s | No quality gain vs 2b for this worker |
+| `qwen2.5:14b` | 9.0 GB | **17/17** | 13.9 s | 5.1 s | 4.2 s | Passes; highest latency among passers |
+| `granite4.2:3b` | 2.2 GB | 6/17 | 9.7 s | 8.2 s | 5.5 s | Thinking → empty `content` on metric/RCA |
+| `qwen3:8b` | 5.2 GB | 6/17 | 18.7 s | 17.8 s | 17.7 s | Thinking-style empties `content` on RCA/severity |
+| `granite4.2:8b` | 5.3 GB | 0/17 | 22.0 s | 19.0 s | 18.8 s | OpenAI `content` empty — skip with current client |
+
+**Selection:** use **`granite3.3:2b`** for local Ollama testing. Prefer other perfect-score Granite tags (`granite3.1-moe:3b`, `granite4:3b`) before non-IBM models. Skip **Granite 4.2** and **Qwen3** until `message.content` is reliable (or the client falls back to `reasoning`).
 
 ## 6.3 Inference backend decision matrix
 
@@ -448,7 +457,7 @@ Pick **one** path. Do not treat any row as the project default. The worker uses 
 
 | Criterion | A. vLLM in-cluster | B. RHOAI model serving | C. OpenAI-compatible (incl. local Ollama) | D. Inference disabled |
 | --- | --- | --- | --- | --- |
-| When to choose | You already run vLLM next to Kafka; lowest latency; prompts stay in-cluster | You already operate OpenShift AI / KServe InferenceServices | Corporate/public API **or** laptop Ollama ([§6.2.10](#6210-local-inference-with-ollama-ibm-granite)) | You only need predictive disk TTE for EDA |
+| When to choose | You already run vLLM next to Kafka; lowest latency; prompts stay in-cluster | You already operate OpenShift AI / KServe InferenceServices | Corporate/public API **or** laptop Ollama ([§6.2.10](#6210-local-inference-testing-with-ollama)) | You only need predictive disk TTE for EDA |
 | Typical `INFERENCE_BASE_URL` | `http://vllm.<namespace>.svc:8000/v1` | `https://<inference-service-host>/v1` | `https://api.openai.com/v1` or `http://127.0.0.1:11434/v1` | unset (omit the key) |
 | `INFERENCE_API_KEY` | Often empty for in-cluster vLLM | Token if the route is authenticated | Required for cloud; omit for Ollama | unused |
 | `INFERENCE_MODEL` | vLLM `--served-model-name` | Deployed serving name | Provider id or `granite3.3:2b` | unused |
@@ -648,7 +657,7 @@ oc -n logstream-kafka delete -k openshift/worker/
 | [`scripts/inject_worker_metrics.py`](../scripts/inject_worker_metrics.py) | Preferred inject (uv + kafka-python) |
 | [`scripts/inject-worker-metrics.sh`](../scripts/inject-worker-metrics.sh) | Wrapper: mise/uv first, kcat fallback |
 | [`scripts/bench_ollama_inference.py`](../scripts/bench_ollama_inference.py) | Score local Ollama models against worker prompts |
-| [`docs/ollama-model-bench.json`](ollama-model-bench.json) | Latest Granite bench raw scores |
+| [`docs/ollama-model-bench.json`](ollama-model-bench.json) | Ollama model bench raw scores (see §6.2.10 results table) |
 | [`openshift/worker/buildconfig.yaml`](../openshift/worker/buildconfig.yaml) | Continuous in-cluster Docker builds |
 | [`openshift/worker/imagestream.yaml`](../openshift/worker/imagestream.yaml) | ImageStream `predictive-ai-worker` |
 | [`openshift/worker/`](../openshift/worker/) | Deployment, ConfigMap, Secret, Service, SA |
