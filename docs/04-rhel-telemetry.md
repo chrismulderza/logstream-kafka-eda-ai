@@ -1,6 +1,6 @@
-# 4. Provisioning RHEL Host Telemetry (Ansible)
+# 4. RHEL Telemetry
 
-This chapter **adds** rsyslog `omkafka` and PCP → Kafka exporters on RHEL 8/9. It does **not** replace existing syslog forwarding. Hosts that already ship logs to **ArcSight** keep that path; Kafka is a second destination.
+This chapter **adds** rsyslog `omkafka` and PCP → Kafka exporters on RHEL 8/9 with Ansible. It does **not** replace existing syslog forwarding. Hosts that already ship logs to **ArcSight** keep that path; Kafka is a second destination.
 
 Playbooks live in [`ansible/telemetry/`](../ansible/telemetry/). End-to-end synthetic tests are in [chapter 7](07-validation-runbook.md).
 
@@ -357,4 +357,4 @@ Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for
 
 ## Next
 
-Deploy Event-Driven Ansible for the ten syslog events ([chapter 5](05-event-driven-ansible.md)). Skip the predictive stream worker unless you need PCP TTE ([optional chapter 6](06-optional-predictive-ai-worker.md)). Prove the syslog path with `logger` in [chapter 7](07-validation-runbook.md).
+Continue with [Event-Driven Ansible](05-event-driven-ansible.md) for the ten syslog events. Skip the [optional predictive worker](06-optional-predictive-ai-worker.md) unless you need PCP TTE. Prove the syslog path with `logger` in [Validation](07-validation-runbook.md).

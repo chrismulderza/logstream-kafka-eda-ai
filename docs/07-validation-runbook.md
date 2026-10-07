@@ -1,8 +1,8 @@
-# 7. Operational Validation & Synthetic Testing Runbook
+# 7. Validation
 
-This chapter is the administrator procedure for proving the event-driven pipeline on OpenShift namespace `logstream-kafka`, Kafka cluster `telemetry`, and attached RHEL hosts. It assumes Kafka, host telemetry, and Event-Driven Ansible from chapters 03–05 are already deployed. Section 7.6 (storage fill) applies only if you deployed the [optional predictive worker](06-optional-predictive-ai-worker.md).
+Prove the event-driven pipeline on OpenShift namespace `logstream-kafka`, Kafka cluster `telemetry`, and attached RHEL hosts. Assume Kafka, host telemetry, and Event-Driven Ansible from chapters 3–5 are already deployed. Section 7.6 (storage fill) applies only if you deployed the [optional predictive worker](06-optional-predictive-ai-worker.md).
 
-Companion SIEM and Grafana work is in [08-siem-dashboards.md](08-siem-dashboards.md).
+Companion SIEM and Grafana work is in [SIEM and dashboards](08-siem-dashboards.md).
 
 ## 7.1 Scope and naming
 
@@ -265,3 +265,7 @@ Record date, operator, cluster, and host. All of **Must-pass** must be Pass befo
 | [siem/logstash-kafka.conf](../siem/logstash-kafka.conf) | Logstash group `siem-logstash` |
 | [siem/splunk-connect-kafka.yaml](../siem/splunk-connect-kafka.yaml) | Splunk group `siem-splunk` |
 | [08-siem-dashboards.md](08-siem-dashboards.md) | SIEM and dashboard import |
+
+## Next
+
+Continue with [SIEM and dashboards](08-siem-dashboards.md) for parallel Logstash/Splunk consumers and Grafana.

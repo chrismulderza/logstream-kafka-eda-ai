@@ -1,8 +1,8 @@
-# 8. SIEM & Dashboard Integration Reference
+# 8. SIEM and Dashboards
 
-This chapter is the administrator procedure for parallel SIEM consumption and Grafana operations views. Kafka cluster `telemetry` in namespace `logstream-kafka` remains the system of record. Event-Driven Ansible (`ansible-eda`) **must keep an exclusive consumer group**. If you deploy the optional predictive worker, it uses `stream-worker` exclusively. SIEM uses only `siem-logstash` and `siem-splunk`.
+Wire parallel SIEM consumers and Grafana operations views. Kafka cluster `telemetry` in namespace `logstream-kafka` remains the system of record. Event-Driven Ansible (`ansible-eda`) **must keep an exclusive consumer group**. If you deploy the optional predictive worker, it uses `stream-worker` exclusively. SIEM uses only `siem-logstash` and `siem-splunk`.
 
-Validation of produce/consume paths is in [07-validation-runbook.md](07-validation-runbook.md).
+Validation of produce/consume paths is in [Validation](07-validation-runbook.md).
 
 ## 8.1 Architecture
 

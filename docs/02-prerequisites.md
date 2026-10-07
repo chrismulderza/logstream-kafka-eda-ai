@@ -1,4 +1,4 @@
-# 2. Prerequisites and Environment Verification
+# 2. Prerequisites
 
 Complete this chapter before applying Kafka or host playbooks. Commands assume `oc` is logged in as a user who can create namespaces and Operator subscriptions, and that Ansible can SSH to RHEL endpoints as a privileged user.
 
@@ -182,6 +182,6 @@ Print this list and tick it in the change window.
 - [ ] SIEM owners know they must use `siem-logstash` / `siem-splunk` groups
 - [ ] Destructive remediation flags stay `false` until validation passes
 
-## 2.7 Next step
+## Next
 
-Deploy Kafka: [chapter 3](03-kafka-openshift.md).
+Continue with [Kafka on OpenShift](03-kafka-openshift.md).

@@ -1,6 +1,6 @@
-# 6. Optional: Predictive AI stream worker
+# 6. Optional Predictive Worker
 
-This chapter is **optional**. The core pipeline is syslog on `rhel-system-logs` plus Event-Driven Ansible in [chapter 5](05-event-driven-ansible.md). Deploy this worker only if you want PCP/raw-metric time-to-exhaustion (TTE) alerts on `enriched-events`. Skip image build, Secret, and the optional EDA rulebook if you do not need predictive storage alerts.
+This chapter is **optional**. The core pipeline is syslog on `rhel-system-logs` plus Event-Driven Ansible in [Event-Driven Ansible](05-event-driven-ansible.md). Deploy this worker only if you want PCP/raw-metric time-to-exhaustion (TTE) alerts on `enriched-events`. Skip image build, Secret, and the optional EDA rulebook if you do not need predictive storage alerts.
 
 EDA for TTE uses `ansible/eda/rulebook-optional-predictive.yml` (CLI) or `aap-rulebook-optional-predictive.yml` (AAP). Do not add those sources unless this worker is running. Keep consumer group `stream-worker` exclusive to the worker.
 
@@ -156,7 +156,7 @@ oc project logstream-kafka
 
 oc apply -f openshift/worker/serviceaccount.yaml
 oc apply -f openshift/worker/configmap.yaml
-# Skip if you already created the Secret with oc create in 5.5:
+# Skip if you already created the Secret with oc create in 6.5:
 oc apply -f openshift/worker/secret.yaml
 oc apply -f openshift/worker/service.yaml
 
@@ -269,3 +269,7 @@ oc -n logstream-kafka delete -k openshift/worker/
 | [`openshift/worker/`](../openshift/worker/) | ServiceAccount, ConfigMap, Secret template, Deployment, optional Service |
 | [`ansible/eda/rulebook-optional-predictive.yml`](../ansible/eda/rulebook-optional-predictive.yml) | CLI EDA for `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` |
 | [`ansible/eda/aap-rulebook-optional-predictive.yml`](../ansible/eda/aap-rulebook-optional-predictive.yml) | AAP activation for the same alert |
+
+## Next
+
+Prove the worker path with the storage-fill test in [Validation](07-validation-runbook.md), then wire [SIEM and dashboards](08-siem-dashboards.md) if required.

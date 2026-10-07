@@ -1,6 +1,6 @@
-# 5. Event-Driven Ansible: syslog analysis and gated remediations
+# 5. Event-Driven Ansible
 
-This chapter is the **core automation path**: RHEL syslog already dual-homed to ArcSight and Kafka (`rhel-system-logs`) is matched by Event-Driven Ansible (EDA). Each of the ten catalog events below has a rule, a playbook, and a SIEM use. Predictive analytics is **not** required; skip [chapter 6](06-optional-predictive-ai-worker.md) unless you want PCP time-to-exhaustion.
+This chapter is the **core automation path**: RHEL syslog already dual-homed to ArcSight and Kafka (`rhel-system-logs`) is matched by Event-Driven Ansible (EDA). Each of the ten catalog events below has a rule, a playbook, and a SIEM use. Predictive analytics is **not** required; skip the [optional predictive worker](06-optional-predictive-ai-worker.md) unless you want PCP time-to-exhaustion.
 
 Two runtimes are first-class: **Ansible Automation Platform (AAP) 2.5/2.6 rulebook activations** and the **`ansible-rulebook` CLI**. On OpenShift **4.21**, use AAP **2.6** (2.5 Operators stop at OCP 4.20). Artifacts live in `ansible/eda/`.
 
@@ -313,3 +313,7 @@ Confirm ArcSight still receives the same lines. Confirm Kafka `rhel-system-logs`
 - [ ] Extra vars keep every `allow_*` flag false until a reviewed change.
 - [ ] Inventory hostnames match `host` in Kafka JSON so `target_host` lands on the correct machine.
 - [ ] Predictive worker and `enriched-events` rulebook are **not** required for this chapter.
+
+## Next
+
+Prove the syslog path in [Validation](07-validation-runbook.md). Deploy the [optional predictive worker](06-optional-predictive-ai-worker.md) only if you need PCP time-to-exhaustion.

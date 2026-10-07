@@ -1,4 +1,4 @@
-# 3. Deploying Apache Kafka on OpenShift (KRaft)
+# 3. Kafka on OpenShift
 
 This chapter installs **Red Hat Streams for Apache Kafka** from OperatorHub and deploys a production KRaft cluster named `telemetry` in namespace `logstream-kafka`. Manifests live in [`openshift/kafka/`](../openshift/kafka/). Apply-order notes are also in [`openshift/kafka/README.md`](../openshift/kafka/README.md).
 
@@ -578,3 +578,7 @@ Use only when the operator is already installed, or accept that topics will be `
 | [`openshift/kafka/kafka-topic-*.yaml`](../openshift/kafka/) | Topic Operator CRs |
 | [`openshift/kafka/kustomization.yaml`](../openshift/kafka/kustomization.yaml) | Resource list |
 | [`openshift/kafka/README.md`](../openshift/kafka/README.md) | Short apply-order card |
+
+## Next
+
+Continue with [RHEL telemetry](04-rhel-telemetry.md) to dual-home syslog onto Kafka while keeping ArcSight.

@@ -1,6 +1,8 @@
-# 1. Architectural Overview and Component Topology
+# 1. Architecture
 
-This architecture streams RHEL syslog (and optionally Performance Co-Pilot metrics) into Apache Kafka on OpenShift, then fans out to Event-Driven Ansible (EDA) and SIEM in parallel. Predictive analytics is an **optional** later chapter: you can automate the ten syslog events without a stream worker or LLM.
+This chapter defines the topic contracts, listeners, and consumer groups used everywhere else in the book.
+
+RHEL syslog (and optionally Performance Co-Pilot metrics) stream into Apache Kafka on OpenShift, then fan out to Event-Driven Ansible (EDA) and SIEM in parallel. Predictive analytics is an **optional** later chapter: you can automate the ten syslog events without a stream worker or LLM.
 
 ## 1.1 Design goals
 
@@ -131,16 +133,24 @@ TTE = (Capacity - Used_current) / (ΔUsed / Δt)
 
 | Your environment | Start at |
 | --- | --- |
-| Greenfield OpenShift + RHEL | [Prerequisites](02-prerequisites.md) then [Kafka](03-kafka-openshift.md) |
+| First time with this pack | [Introduction](index.md), then this chapter |
+| Greenfield OpenShift + RHEL | [Prerequisites](02-prerequisites.md) then [Kafka on OpenShift](03-kafka-openshift.md) |
 | Existing Streams for Apache Kafka 3.x KRaft cluster | Create the four topics and listeners, then [RHEL telemetry](04-rhel-telemetry.md) |
-| Telemetry already in Kafka | [EDA](05-event-driven-ansible.md); optional [worker](06-optional-predictive-ai-worker.md) |
+| Telemetry already in Kafka | [Event-Driven Ansible](05-event-driven-ansible.md); optional [predictive worker](06-optional-predictive-ai-worker.md) |
 | Proof of pipeline | [Validation](07-validation-runbook.md) |
 
 ## 1.8 Decision matrices
 
 Inference and EDA are independent choices. Document your selection in your change ticket.
 
-**Inference (optional chapter 6)**
+**EDA runtime ([chapter 5](05-event-driven-ansible.md))**
+
+| Option | When to use |
+| --- | --- |
+| AAP 2.5 or 2.6 Event-Driven Ansible | Production activations, RBAC, decision environments. Use 2.6 on OCP 4.21 |
+| `ansible-rulebook` CLI | Lab, jump host, or before AAP is available |
+
+**Inference ([optional chapter 6](06-optional-predictive-ai-worker.md))**
 
 | Option | When to use |
 | --- | --- |
@@ -149,11 +159,8 @@ Inference and EDA are independent choices. Document your selection in your chang
 | Red Hat OpenShift AI | You already serve a model with an OpenAI-compatible endpoint |
 | External OpenAI-compatible API | SaaS or remote gateway; requires egress and a secret API key |
 
-**EDA runtime (chapter 5)**
+Both EDA runtimes consume the same [ansible/eda/](../ansible/eda/) rulebook and playbooks.
 
-| Option | When to use |
-| --- | --- |
-| AAP 2.5 or 2.6 Event-Driven Ansible | Production activations, RBAC, decision environments. Use 2.6 on OCP 4.21 |
-| `ansible-rulebook` CLI | Lab, jump host, or before AAP is available |
+## Next
 
-Both runtimes consume the same [ansible/eda/](../ansible/eda/) rulebook and playbooks.
+Continue with [Prerequisites](02-prerequisites.md).

@@ -1,4 +1,4 @@
-site_name: Event-Driven Telemetry Deployment Guide
+site_name: Logstream Kafka EDA
 site_description: Administrator deployment book for Kafka, RHEL syslog analysis with Event-Driven Ansible, and optional predictive analytics
 site_url: https://chrismulderza.github.io/logstream-kafka-eda-ai/
 repo_url: https://github.com/chrismulderza/logstream-kafka-eda-ai
@@ -63,12 +63,12 @@ validation:
     unrecognized_links: ignore
     not_found: info
 nav:
-  - Home: index.md
+  - Introduction: index.md
   - 1. Architecture: 01-architecture.md
   - 2. Prerequisites: 02-prerequisites.md
   - 3. Kafka on OpenShift: 03-kafka-openshift.md
   - 4. RHEL Telemetry: 04-rhel-telemetry.md
   - 5. Event-Driven Ansible: 05-event-driven-ansible.md
   - 6. Optional Predictive Worker: 06-optional-predictive-ai-worker.md
-  - 7. Validation Runbook: 07-validation-runbook.md
+  - 7. Validation: 07-validation-runbook.md
   - 8. SIEM and Dashboards: 08-siem-dashboards.md
