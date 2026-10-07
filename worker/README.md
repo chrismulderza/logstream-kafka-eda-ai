@@ -64,6 +64,24 @@ Expect discovery of `localhost:<port>`, six rising samples, then JSON with `"ale
 
 Stop: press `q` in the Quarkus console, or terminate the `mise run dev` process.
 
+## Local LLM testing (Ollama)
+
+Step-by-step procedure (start Ollama → pull `granite3.3:2b` → export `INFERENCE_*` → `mise run dev` → inject → `ollama rm` cleanup): [docs §6.2.10](../docs/06-optional-predictive-ai-worker.md#6210-local-inference-testing-with-ollama).
+
+```bash
+ollama serve   # if needed
+ollama pull granite3.3:2b
+export INFERENCE_BASE_URL=http://127.0.0.1:11434/v1
+export INFERENCE_MODEL=granite3.3:2b
+export LLM_ON_METRIC_ALERTS=true
+export INFERENCE_TIMEOUT_SECONDS=60
+mise run dev
+# other terminal:
+../scripts/inject-worker-metrics.sh --consume -H ollama-dev
+# when finished:
+ollama rm granite3.3:2b
+```
+
 ## Container / OpenShift build
 
 Prefer the in-cluster BuildConfig (continuous):

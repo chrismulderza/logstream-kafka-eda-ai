@@ -1,6 +1,7 @@
 package ai.logstream.worker.messaging;
 
 import ai.logstream.worker.process.EventProcessor;
+import io.smallrye.common.annotation.Blocking;
 import io.smallrye.reactive.messaging.kafka.api.IncomingKafkaRecordMetadata;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -27,6 +28,7 @@ public class MetricsConsumer {
     }
 
     @Incoming("metrics")
+    @Blocking // Sync inference HTTP must not run on the Vert.x event loop
     public CompletionStage<Void> consume(Message<String> message) {
         String topic = message.getMetadata(IncomingKafkaRecordMetadata.class)
                 .map(IncomingKafkaRecordMetadata::getTopic)

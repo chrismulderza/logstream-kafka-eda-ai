@@ -328,17 +328,131 @@ source scripts/podman-env.sh
 ./mvnw quarkus:dev
 ```
 
+### 6.2.10 Local inference testing with Ollama
+
+Use this procedure on a **developer workstation** to exercise LLM enrichment against Kafka Dev Services without a cluster inference backend. The worker calls Ollama’s OpenAI-compatible API at `http://127.0.0.1:11434/v1`. Prefer **IBM Granite** models in the **16–24 GB** RAM class; the tested default is **`granite3.3:2b`** (~1.5 GB on disk).
+
+Prerequisites: [§6.2.1–6.2.6](#621-workstation-dependency-overview) (mise + Podman + `mise run dev` already known to work without inference). Install the [Ollama](https://ollama.com/) CLI (macOS: `brew install ollama` or the desktop app; Fedora/RHEL: follow Ollama’s Linux install).
+
+#### Step 1 — Start Ollama
+
+```bash
+# If the API is not already up:
+ollama serve
+# Verify:
+curl -sf http://127.0.0.1:11434/api/version
+```
+
+Leave this process running (or use the Ollama app, which serves the same port).
+
+#### Step 2 — Pull the recommended model
+
+```bash
+ollama pull granite3.3:2b
+ollama list   # expect granite3.3:2b
+```
+
+Optional alternatives that also passed the worker JSON bench: `granite3.1-moe:3b`, `granite4:3b`, `granite3.3:8b`. Avoid `granite4.2:*` and `qwen3:*` with the current client (they often leave OpenAI `message.content` empty). Model comparison notes and raw scores: [below](#model-evaluation-notes) and [`docs/ollama-model-bench.json`](ollama-model-bench.json). Re-bench with:
+
+```bash
+python3 scripts/bench_ollama_inference.py granite3.3:2b
+```
+
+#### Step 3 — Start Quarkus with inference env
+
+In a **second** terminal (Podman ready; do not set `KAFKA_BOOTSTRAP_SERVERS` if you want Dev Services):
+
+```bash
+cd worker
+export INFERENCE_BASE_URL=http://127.0.0.1:11434/v1
+export INFERENCE_MODEL=granite3.3:2b
+export LLM_ON_METRIC_ALERTS=true
+export INFERENCE_TIMEOUT_SECONDS=60
+# Leave INFERENCE_API_KEY unset — Ollama does not require a bearer token
+mise run dev
+```
+
+Wait until logs show `Listening on: http://0.0.0.0:8080` and `Dev Services for Kafka started`. Confirm health: `curl -sf http://127.0.0.1:8080/healthz`.
+
+| Variable | Value for local Ollama |
+| --- | --- |
+| `INFERENCE_BASE_URL` | `http://127.0.0.1:11434/v1` (must include `/v1`) |
+| `INFERENCE_MODEL` | Ollama tag, e.g. `granite3.3:2b` |
+| `LLM_ON_METRIC_ALERTS` | `true` |
+| `INFERENCE_TIMEOUT_SECONDS` | `60` (local CPU/GPU can be slower than cluster GPUs) |
+| `INFERENCE_API_KEY` | omit |
+
+#### Step 4 — Inject metrics and verify LLM fields
+
+In a **third** terminal (use a fresh `-H` host so alert cooldown does not suppress emission):
+
+```bash
+./scripts/inject-worker-metrics.sh --consume -H ollama-dev
+```
+
+**Pass criteria:**
+
+1. Script discovers Dev Services Kafka (`Using Quarkus Dev Services Kafka at localhost:…`).
+2. Six samples are produced; worker log shows `emitted PREEMPTIVE_STORAGE_EXHAUSTION_RISK` for `ollama-dev` (on a **worker** thread, not only the Vert.x event loop).
+3. Consumed JSON includes TTE fields **and** LLM enrichment:
+
+```json
+{
+  "alert_type": "PREEMPTIVE_STORAGE_EXHAUSTION_RISK",
+  "host": "ollama-dev",
+  "instance": "/var",
+  "severity": "WARNING",
+  "severity_score": 80,
+  "root_cause": "…",
+  "summary": "…",
+  "recommended_action": "…"
+}
+```
+
+If TTE fields exist but `severity` / `root_cause` / `summary` are missing, check worker logs for `Inference request failed` (wrong base URL, Ollama down, model not pulled, or timeout). The Kafka consumer must be `@Blocking` so the sync REST client is not called on the Vert.x event loop.
+
+#### Step 5 — Stop and clean up
+
+```bash
+# Stop Quarkus (Ctrl+C / q in the mise run dev terminal, or SIGTERM the process)
+# Stop ollama serve if you started it only for this test
+
+# Remove models pulled for this workflow (frees disk):
+ollama list
+ollama rm granite3.3:2b
+# Also remove any alternatives you pulled, e.g.:
+# ollama rm granite3.1-moe:3b granite4:3b granite3.3:8b
+
+# Confirm:
+ollama list
+```
+
+Unset inference env vars in your shell (`unset INFERENCE_BASE_URL INFERENCE_MODEL LLM_ON_METRIC_ALERTS`) before the next `mise run dev` if you want TTE-only mode again.
+
+#### Model evaluation notes
+
+Benchmarked with [`scripts/bench_ollama_inference.py`](../scripts/bench_ollama_inference.py) (max score **17**). Prefer IBM Granite; pick the smallest perfect score that fits 16–24 GB.
+
+| Model | Disk | Score | Metric latency | Notes |
+| --- | --- | --- | --- | --- |
+| **`granite3.3:2b`** | 1.5 GB | **17/17** | ~2.4 s | **Default for local Ollama testing** |
+| `granite3.1-moe:3b` | 2.0 GB | **17/17** | ~3.0 s | Fast MoE alternative |
+| `granite4:3b` | 2.1 GB | **17/17** | ~5.0 s | Perfect; slightly slower |
+| `granite3.3:8b` | 4.9 GB | **17/17** | ~9.0 s | No quality gain vs 2b for this worker |
+| `llama3.2:3b` / `phi4-mini` / `qwen2.5:7b` | 2–5 GB | **17/17** | ~3–6 s | Non-IBM passers; use only if Granite unavailable |
+| `granite4.2:*` / `qwen3:8b` | — | ≤6/17 | — | Thinking often empties OpenAI `content` — skip |
+
 ## 6.3 Inference backend decision matrix
 
 Pick **one** path. Do not treat any row as the project default. The worker uses a single HTTP client: `POST {INFERENCE_BASE_URL}/chat/completions` with `Authorization: Bearer {INFERENCE_API_KEY}` when the key is non-empty.
 
-| Criterion | A. vLLM in-cluster | B. RHOAI model serving | C. External OpenAI-compatible API | D. Inference disabled |
+| Criterion | A. vLLM in-cluster | B. RHOAI model serving | C. OpenAI-compatible (incl. local Ollama) | D. Inference disabled |
 | --- | --- | --- | --- | --- |
-| When to choose | You already run vLLM next to Kafka; lowest latency; prompts stay in-cluster | You already operate OpenShift AI / KServe InferenceServices | You have a corporate or public Chat Completions endpoint and cannot host a model | You only need predictive disk TTE for EDA |
-| Typical `INFERENCE_BASE_URL` | `http://vllm.<namespace>.svc:8000/v1` | `https://<inference-service-host>/v1` | `https://api.openai.com/v1` or your gateway `/v1` | unset (omit the key) |
-| `INFERENCE_API_KEY` | Often empty for in-cluster vLLM | Token if the route is authenticated | Required | unused |
-| `INFERENCE_MODEL` | vLLM `--served-model-name` | Deployed serving name | Provider model id | unused |
-| Network | ClusterIP HTTP, typically port 8000 | Route (TLS) and/or Service | Egress; may need proxy / EgressFirewall | none |
+| When to choose | You already run vLLM next to Kafka; lowest latency; prompts stay in-cluster | You already operate OpenShift AI / KServe InferenceServices | Corporate/public API **or** laptop Ollama ([§6.2.10](#6210-local-inference-with-ollama-ibm-granite)) | You only need predictive disk TTE for EDA |
+| Typical `INFERENCE_BASE_URL` | `http://vllm.<namespace>.svc:8000/v1` | `https://<inference-service-host>/v1` | `https://api.openai.com/v1` or `http://127.0.0.1:11434/v1` | unset (omit the key) |
+| `INFERENCE_API_KEY` | Often empty for in-cluster vLLM | Token if the route is authenticated | Required for cloud; omit for Ollama | unused |
+| `INFERENCE_MODEL` | vLLM `--served-model-name` | Deployed serving name | Provider id or `granite3.3:2b` | unused |
+| Network | ClusterIP HTTP, typically port 8000 | Route (TLS) and/or Service | Egress or localhost:11434 | none |
 | Failure mode | Inference errors are logged; TTE alerts still emit | Same | Same | TTE alerts only |
 
 Configure the chosen row in [`openshift/worker/configmap.yaml`](../openshift/worker/configmap.yaml) and the Secret **before** apply. Switching backends later is a ConfigMap/Secret change plus a rollout; the container image does not change.
@@ -533,6 +647,8 @@ oc -n logstream-kafka delete -k openshift/worker/
 | [`worker/Dockerfile`](../worker/Dockerfile) | UBI9 OpenJDK 21 multi-stage image |
 | [`scripts/inject_worker_metrics.py`](../scripts/inject_worker_metrics.py) | Preferred inject (uv + kafka-python) |
 | [`scripts/inject-worker-metrics.sh`](../scripts/inject-worker-metrics.sh) | Wrapper: mise/uv first, kcat fallback |
+| [`scripts/bench_ollama_inference.py`](../scripts/bench_ollama_inference.py) | Score local Ollama models against worker prompts |
+| [`docs/ollama-model-bench.json`](ollama-model-bench.json) | Latest Granite bench raw scores |
 | [`openshift/worker/buildconfig.yaml`](../openshift/worker/buildconfig.yaml) | Continuous in-cluster Docker builds |
 | [`openshift/worker/imagestream.yaml`](../openshift/worker/imagestream.yaml) | ImageStream `predictive-ai-worker` |
 | [`openshift/worker/`](../openshift/worker/) | Deployment, ConfigMap, Secret, Service, SA |

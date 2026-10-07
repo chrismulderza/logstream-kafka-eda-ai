@@ -1,0 +1,103 @@
+
+=== granite3.3:2b ===
+  metric_alert: json=True keys=True sev=True score=True 2.4s pts=6
+    preview: {"severity":"CRITICAL","score":80,"root_cause":"High usage rate exceeding storage capacity on testhost instance /var","summary":"Storage space utilization is rapidly approaching its limit","recommended_action":"Immediate action required to 
+  rca: json=True keys=True sev=None score=None 1.3s pts=5
+    preview: {"root_cause":"High memory usage by process 1234 (java), causing system to run out of memory","subsystem":"Kernel","summary":"Out of Memory Error","recommended_action":"Investigate process 1234 (java) memory usage, consider increasing syste
+  severity: json=True keys=True sev=True score=True 0.8s pts=6
+    preview: {"severity":"CRITICAL","score":95,"rationale":"Process with ID 1234 (java) is causing OOM (Out of Memory) on host web01, indicating a critical system issue."}
+
+=== granite3.3:8b ===
+  metric_alert: json=True keys=True sev=True score=True 9.0s pts=6
+    preview: {"severity":"WARNING","score":80,"root_cause":"Rapidly filling up the /var partition","summary":"The /var partition on host testhost is filling up rapidly, currently at 600GB out of 1000GB with a rate of 100GB/second, and predicted to be fu
+  rca: json=True keys=True sev=None score=None 3.2s pts=5
+    preview: {"root_cause":"Out of memory", "subsystem":"Process Management", "summary":"A process (ID 1234, named java) was terminated due to insufficient memory", "recommended_action":"Consider increasing available memory or optimizing memory usage of
+  severity: json=True keys=True sev=True score=True 3.1s pts=6
+    preview: {"severity":"CRITICAL","score":100,"rationale":"The 'Out of memory' error with process ID 1234 (java) indicates a critical system failure, as the system is unable to allocate necessary memory to operate, leading to the termination of a crit
+
+=== granite4:3b ===
+  metric_alert: json=True keys=True sev=True score=True 5.0s pts=6
+    preview: {\n  "severity": "WARNING",\n  "score": 70,\n  "root_cause": "Storage usage is approaching the threshold of 80% capacity, which could lead to exhaustion if the rate of consumption continues.",\n  "summary": "The storage on testhost is running l
+  rca: json=True keys=True sev=None score=None 1.8s pts=5
+    preview: {\n  "root_cause": "Out of memory",\n  "subsystem": "kernel",\n  "summary": "The system is running out of memory, leading to a kill process or sacrifice child error.",\n  "recommended_action": "Investigate the cause of the memory pressure and o
+  severity: json=True keys=True sev=True score=True 1.8s pts=6
+    preview: {\n  "severity": "CRITICAL",\n  "score": 90,\n  "rationale": "The message indicates an Out of Memory (OOM) error, which is a critical issue that can cause the system to become unstable or crash. Killing a critical process like Java (often asso
+
+=== granite3.1-moe:3b ===
+  metric_alert: json=True keys=True sev=True score=True 3.0s pts=6
+    preview: {"severity":"WARNING","score":80,"root_cause":"High rate of data writes to /var directory","summary":"Predictive storage exhaustion alert due to high write rate to /var directory. Current used space is 600GB (60%), capacity is 1000GB (100%)
+  rca: json=True keys=True sev=None score=None 0.5s pts=5
+    preview: {"root_cause":"Out of memory","subsystem":"kernel","summary":"High memory usage by process 1234 (java)","recommended_action":"Kill process 1234 (java) or sacrifice child process"}
+  severity: json=True keys=True sev=True score=True 0.5s pts=6
+    preview: {"severity":"CRITICAL","score":95,"rationale":"The system is experiencing an Out of Memory (OOM) condition, indicating that the Java process with PID 1234 has exceeded its allocated memory, potentially leading to a system crash or severe pe
+
+=== granite4.2:3b ===
+  metric_alert: json=False keys=False sev=None score=None 9.7s pts=0
+    preview: 
+  rca: json=False keys=False sev=None score=None 8.2s pts=0
+    preview: 
+  severity: json=True keys=True sev=True score=True 5.5s pts=6
+    preview: {\n  "severity": "CRITICAL",\n  "score": 95,\n  "rationale": "Host web01 reported an out-of-memory condition, leading to termination of process java. This is a severe operational issue requiring immediate attention."\n}
+
+=== granite4.2:8b ===
+  metric_alert: json=False keys=False sev=None score=None 22.0s pts=0
+    preview: 
+  rca: json=False keys=False sev=None score=None 19.0s pts=0
+    preview: {"root_cause":"Out-of-memory condition triggered OOM killer to terminate java process","subsystem":"Memory management (OOM killer)","summary":"Kernel killed java process 1234 due to insufficient memory","recommended_action":"Investigate cur
+  severity: json=False keys=False sev=None score=None 18.8s pts=0
+    preview: 
+
+=== llama3.2:3b ===
+  metric_alert: json=True keys=True sev=True score=True 3.7s pts=6
+    preview: {"severity":"WARNING","score":20,"root_cause":"Instance capacity exceeded by 600.0 GB","summary":"Predictive Storage Exhaustion Alert","recommended_action":"Reduce instance usage or increase capacity"}
+  rca: json=True keys=True sev=None score=None 1.2s pts=5
+    preview: {"root_cause":"Out of memory","subsystem":"kernel","summary":"Out of memory: Kill process 1234 (java) score 900 or sacrifice child","recommended_action":"Kill process 1234 (java) score 900 or sacrifice child"}
+  severity: json=True keys=True sev=True score=True 0.5s pts=6
+    preview: {"severity":"INFO","score":20,"rationale":"General system alert, no immediate action required"}
+
+=== phi4-mini ===
+  metric_alert: json=True keys=True sev=True score=True 4.5s pts=6
+    preview: ```json\n{\n  "severity": "WARNING",\n  "score": 75,\n  "root_cause": "High utilization nearing capacity with significant rate of increase",\n  "summary": "Storage is currently at 60% capacity with a high rate of data increase, which may lead to
+  rca: json=True keys=True sev=None score=None 1.6s pts=5
+    preview: {\n    "root_cause": "Out of memory: Kill process",\n    "subsystem": "kernel",\n    "summary": "The system ran out of memory and killed a Java process with a high score.",\n    "recommended_action": "Investigate memory usage and optimize or in
+  severity: json=True keys=True sev=True score=True 1.2s pts=6
+    preview: ```json\n{"severity":"CRITICAL","score":80,"rationale":"The web server has run out of memory, leading to the termination of a Java process, which could indicate a severe resource limitation issue affecting service availability."}\n```
+
+=== qwen2.5:7b ===
+  metric_alert: json=True keys=True sev=True score=True 6.2s pts=6
+    preview: {"severity":"CRITICAL","score":85,"root_cause":"Current usage is 60% and increasing at 100 MB/s, reaching capacity in 4 seconds.","summary":"Predicted storage exhaustion in 4 seconds due to high usage rate.","recommended_action":"Immediate 
+  rca: json=True keys=True sev=None score=None 2.5s pts=5
+    preview: {"root_cause":"Memory exhaustion","subsystem":"Java application on RHEL","summary":"Kernel attempted to kill process 1234 (java) due to memory pressure","recommended_action":"Review Java application memory usage and consider increasing swap
+  severity: json=True keys=True sev=True score=True 1.7s pts=6
+    preview: {"severity":"CRITICAL","score":85,"rationale":"The system ran out of memory and had to kill a process, indicating a severe issue that could affect service stability."}
+
+=== qwen2.5:14b ===
+  metric_alert: json=True keys=True sev=True score=True 13.9s pts=6
+    preview: {"severity":"CRITICAL","score":95,"root_cause":"Rapidly increasing disk usage on /var with a rate of 100.0 units/s and only 4 seconds to exhaustion.","summary":"The /var partition on testhost is nearing capacity, with only 400.0 units free 
+  rca: json=True keys=True sev=None score=None 5.1s pts=5
+    preview: {"root_cause":"Out of memory","subsystem":"kernel","summary":"The system is running out of memory and is considering killing process 1234 (java) to resolve the issue.","recommended_action":"Investigate and optimize the java process or incre
+  severity: json=True keys=True sev=True score=True 4.2s pts=6
+    preview: {"severity":"CRITICAL","score":100,"rationale":"The message indicates an out-of-memory condition that has led to the termination of a critical process (java), which can severely impact the availability and functionality of the web server."}
+
+=== qwen3:8b ===
+  metric_alert: json=True keys=True sev=True score=True 18.7s pts=6
+    preview: {"severity":"CRITICAL","score":90,"root_cause":"Storage usage rate of 100.0 MB/s approaching 1000.0 MB capacity","summary":"/var storage will exhaust in 4.0 seconds at current rate","recommended_action":"Immediately free up space, investiga
+  rca: json=False keys=False sev=None score=None 17.8s pts=0
+    preview: {"root_cause":"Out of memory","subsystem":"kernel memory management","summary":"OOM killer terminated java process (pid 1234) to free memory","recommended_action":"Check memory usage metrics, investigate memory leaks, and ensure sufficient 
+  severity: json=False keys=False sev=None score=None 17.7s pts=0
+    preview: 
+
+=== RANKING ===
+17/17	granite3.1-moe:3b
+17/17	granite3.3:2b
+17/17	granite3.3:8b
+17/17	granite4:3b
+17/17	llama3.2:3b
+17/17	phi4-mini
+17/17	qwen2.5:14b
+17/17	qwen2.5:7b
+6/17	granite4.2:3b
+6/17	qwen3:8b
+0/17	granite4.2:8b
+wrote /Users/cmulder/code/work/aiops/logstream-kafka-eda-ai/docs/ollama-model-bench.json
+BEST=granite3.1-moe:3b
