@@ -5,6 +5,8 @@ repo_url: https://github.com/chrismulderza/logstream-kafka-eda-ai
 repo_name: chrismulderza/logstream-kafka-eda-ai
 edit_uri: edit/main/docs/
 docs_dir: docs
+hooks:
+  - hooks/repo_file_links.py
 theme:
   name: material
   custom_dir: overrides
