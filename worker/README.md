@@ -21,7 +21,7 @@ Alert type string (do not change): `PREEMPTIVE_STORAGE_EXHAUSTION_RISK`.
 
 | Need | How |
 | --- | --- |
-| Java 21, Maven, Quarkus CLI, Python, uv | `cd worker && mise install` ([mise](https://mise.jdx.dev/getting-started.html) + [`mise.toml`](mise.toml)) |
+| **OpenJDK 21**, Maven, Quarkus CLI, Python, uv | `cd worker && mise install` ([mise](https://mise.jdx.dev/getting-started.html) + [`mise.toml`](mise.toml) pins `openjdk-21.0.2`) |
 | **Podman** (required; not Docker Desktop) | macOS: [Podman Desktop](https://podman-desktop.io/) + `podman machine start`. Fedora/RHEL: `dnf install podman` + `systemctl --user enable --now podman.socket` |
 | bash, curl | OS defaults |
 
@@ -73,7 +73,13 @@ oc apply -k openshift/worker/
 oc start-build predictive-ai-worker --from-dir=worker --follow -n logstream-kafka
 ```
 
-Optional local image: `podman build -t predictive-ai-worker:latest -f Dockerfile .`
+Optional local image (Red Hat UBI 9 bases only):
+
+```bash
+podman build -t predictive-ai-worker:latest -f Dockerfile .
+```
+
+JVM images: `registry.access.redhat.com/ubi9/openjdk-21*:1.24` (OpenJDK). Native micro: `quay.io/quarkus/ubi9-quarkus-micro-image:2.0`. GitHub Actions verifies allowed bases and builds docs in `ubi9/python-312`.
 
 Details: [`openshift/worker/README.md`](../openshift/worker/README.md) and [chapter 6](../docs/06-optional-predictive-ai-worker.md).
 

@@ -13,8 +13,8 @@
 #
 # docker run -i --rm -p 8080:8080 quarkus/worker
 #
-# The ` registry.access.redhat.com/ubi9/ubi-minimal:9.7` base image is based on UBI 9.
-# To use UBI 8, switch to `quay.io/ubi8/ubi-minimal:8.10`.
+# Base image: Red Hat UBI 9 minimal only (registry.access.redhat.com).
+# UBI 8 alternative: registry.access.redhat.com/ubi8/ubi-minimal:8.10
 ###
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7
 WORKDIR /work/

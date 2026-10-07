@@ -80,6 +80,7 @@
 # You can find more information about the UBI base runtime images and their configuration here:
 # https://rh-openjdk.github.io/redhat-openjdk-containers/
 ###
+# Red Hat UBI 9 OpenJDK 21 runtime (Quarkus Java 21 default; matches worker/Dockerfile).
 FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.24
 
 ENV LANGUAGE='en_US:en'

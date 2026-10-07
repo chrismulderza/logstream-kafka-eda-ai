@@ -20,7 +20,7 @@ There is **no single default inference backend**. Choose a row in the decision m
 | Consume | `rhel-pcp-metrics` and/or `raw-metrics` | `KAFKA_CONSUME_TOPICS` (default: both) |
 | Produce | `enriched-events` | JSON keyed by host |
 | Consumer group | `stream-worker` | Do not reuse this group for EDA or SIEM |
-| Runtime | Quarkus 3 / Java 21 | SmallRye Reactive Messaging + REST Client |
+| Runtime | Quarkus 3 / OpenJDK 21 | SmallRye Reactive Messaging + REST Client |
 
 **TTE formula** (rolling window; `dUsed/dt` is a least-squares slope):
 
@@ -50,7 +50,7 @@ Use this section on a **developer workstation** before deploying to OpenShift. K
 | Dependency | Required? | Provided by | Used for |
 | --- | --- | --- | --- |
 | [mise](https://mise.jdx.dev/) | Yes | OS package / install script | Pins Java, Maven, Quarkus CLI, Python, uv |
-| Java 21 (Temurin) | Yes | mise | Compile / run Quarkus |
+| Java 21 (**OpenJDK**) | Yes | mise (`openjdk-21.0.2`) | Compile / run Quarkus; matches UBI9 OpenJDK 21 containers |
 | Maven 3.9.x | Yes | mise (+ `./mvnw`) | `quarkus:dev`, tests, package |
 | Quarkus CLI 3.40.x | Optional | mise | Helpers only; daily work uses `./mvnw` |
 | Python 3.12 + uv | Yes (for inject) | mise | Metric inject via `kafka-python` |
@@ -152,12 +152,14 @@ cd worker
 mise trust          # first time only, if mise asks
 mise install        # java, maven, quarkus, python, uv from mise.toml
 mise ls
-java -version       # openjdk 21.x
+java -version       # openjdk 21.0.2 (prefer OpenJDK, not Temurin)
 mvn -version        # Apache Maven 3.9.16
 quarkus --version   # 3.40.1
 python --version    # 3.12.x
 uv --version        # 0.12.x
 ```
+
+Local Java must stay on **OpenJDK 21** so it matches the JVM container line (`registry.access.redhat.com/ubi9/openjdk-21*:1.24`) and the UBI 9 generation of `quay.io/quarkus/ubi9-quarkus-micro-image:2.0` used for native micro builds (that image has no JDK; native binaries are still produced with OpenJDK 21 + Mandrel/GraalVM as configured).
 
 | Task (from `worker/`) | What it does |
 | --- | --- |
@@ -347,7 +349,7 @@ Configure the chosen row in [`openshift/worker/configmap.yaml`](../openshift/wor
 2. Kafka cluster `telemetry` is Ready. Brokers advertise the internal plaintext listener on port 9092.
 3. Topics exist: `rhel-pcp-metrics` and/or `raw-metrics` (consume), `enriched-events` (produce).
 4. You can `oc` as a project admin on `logstream-kafka`.
-5. Cluster can pull builder images `registry.access.redhat.com/ubi9/openjdk-21` (and runtime) for the Docker strategy BuildConfig, **or** you push a pre-built image.
+5. Cluster can pull builder images `registry.access.redhat.com/ubi9/openjdk-21` (and runtime) for the Docker strategy BuildConfig, **or** you push a pre-built image. JVM images use **UBI 9 OpenJDK 21** (`registry.access.redhat.com/ubi9/openjdk-21*:1.24`). Native micro runtime may use `quay.io/quarkus/ubi9-quarkus-micro-image:2.0` (UBI 9). Prefer OpenJDK; do not use Temurin/Corretto base images.
 6. If Kafka authorization is enabled, grant group `stream-worker` read on the consume topics and write on `enriched-events`.
 
 ### 6.4.1 Security context (restricted-v2)

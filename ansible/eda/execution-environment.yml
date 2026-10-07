@@ -18,6 +18,7 @@
 version: 3
 
 images:
+  # Red Hat registry only (AAP decision environment on RHEL 9 — not Docker Hub).
   base_image:
     name: registry.redhat.io/ansible-automation-platform-26/de-minimal-rhel9:latest
 

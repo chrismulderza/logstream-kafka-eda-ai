@@ -15,21 +15,87 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  # Enforce Red Hat UBI / OpenJDK bases (plus Quarkus UBI9 micro for native).
+  verify-ubi-bases:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: docs/requirements-docs.txt
+      - name: Assert container bases are Red Hat UBI OpenJDK / allowed Quarkus micro
+        run: |
+          set -euo pipefail
+          mapfile -t from_lines < <(grep -RInE '^\s*FROM\s+' \
+            --include='Dockerfile*' \
+            --include='Containerfile*' \
+            --exclude-dir='.git' \
+            . || true)
+          mapfile -t ee_lines < <(grep -RInE '^\s*name:\s*.*(registry\.|quay\.io|docker\.io|ghcr\.io)' \
+            --include='execution-environment.yml' \
+            --exclude-dir='.git' \
+            . || true)
+
+          fail=0
+          # JVM/runtime: registry.access.redhat.com/ubi* (prefer openjdk-*).
+          # Native micro: quay.io/quarkus/ubi9-quarkus-micro-image (UBI 9 companion).
+          # AAP EE: registry.redhat.io/*
+          allowed='^(registry\.access\.redhat\.com/ubi|registry\.redhat\.io/|quay\.io/quarkus/ubi9-quarkus-micro-image)'
+
+          echo "Checking Dockerfile FROM lines..."
+          if [[ ${#from_lines[@]} -eq 0 ]]; then
+            echo "ERROR: no Dockerfile FROM lines found" >&2
+            exit 1
+          fi
+          for line in "${from_lines[@]}"; do
+            img="${line#*:}"
+            img="${img#*:}"
+            img="$(echo "$img" | sed -E 's/^[[:space:]]*FROM[[:space:]]+//; s/[[:space:]]+AS[[:space:]].*$//; s/[[:space:]]+$//')"
+            if [[ ! "$img" =~ $allowed ]]; then
+              echo "ERROR: disallowed base: $line" >&2
+              echo "  parsed image: $img" >&2
+              fail=1
+            else
+              echo "OK: $img"
+            fi
+          done
+
+          echo "Checking ansible-builder base_image entries..."
+          for line in "${ee_lines[@]+"${ee_lines[@]}"}"; do
+            [[ -z "${line:-}" ]] && continue
+            img="$(echo "$line" | sed -E 's/^[^:]+:[0-9]+:[[:space:]]*name:[[:space:]]*//; s/[[:space:]]+$//')"
+            if [[ ! "$img" =~ ^registry\.redhat\.io/ ]] && [[ ! "$img" =~ ^registry\.access\.redhat\.com/ubi ]]; then
+              echo "ERROR: EE base must be registry.redhat.io or UBI: $line" >&2
+              fail=1
+            else
+              echo "OK: $img"
+            fi
+          done
+
+          # Disallow Temurin / Corretto / generic Hub bases in FROM lines
+          if grep -RInE 'FROM[[:space:]]+(docker\.io/|ghcr\.io/|eclipse-temurin|amazoncorretto|temurin)' \
+            --include='Dockerfile*' --include='Containerfile*' --exclude-dir='.git' . ; then
+            echo "ERROR: non-OpenJDK/non-UBI base reference found (prefer ubi9/openjdk-*)" >&2
+            fail=1
+          fi
+
+          exit "$fail"
+
+  build:
+    needs: verify-ubi-bases
+    runs-on: ubuntu-latest
+    # Build docs inside Red Hat UBI 9 Python (not a generic ubuntu/python image).
+    container:
+      image: registry.access.redhat.com/ubi9/python-312:latest
+      # Image defaults to uid 1001; root keeps checkout/pip simple on the runner mount.
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install docs dependencies
-        run: pip install -r docs/requirements-docs.txt
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r docs/requirements-docs.txt
 
       - name: Build site
         run: mkdocs build --strict

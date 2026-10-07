@@ -1,7 +1,9 @@
-# Multi-stage UBI9 image for the predictive AI stream worker (Quarkus JVM).
+# Multi-stage Red Hat UBI 9 + OpenJDK 21 image for the predictive AI stream worker.
+# Matches Quarkus 3.40 defaults for Java 21 JVM containers (openjdk-21*:1.24).
+# Native micro runtime (separate Dockerfile) uses quay.io/quarkus/ubi9-quarkus-micro-image:2.0.
 # Build (from worker/):
 #   podman build -t IMAGE_REF -f Dockerfile .
-FROM registry.access.redhat.com/ubi9/openjdk-21:1.21 AS build
+FROM registry.access.redhat.com/ubi9/openjdk-21:1.24 AS build
 
 USER root
 WORKDIR /build
@@ -16,7 +18,7 @@ RUN chmod +x mvnw \
     && mkdir -p /build/quarkus-app \
     && cp -r target/quarkus-app/. /build/quarkus-app/
 
-FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.21
+FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.24
 
 ENV LANGUAGE='en_US:en' \
     HOME=/tmp \
