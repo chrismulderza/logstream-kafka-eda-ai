@@ -36,7 +36,7 @@ Environment:
   OC_BIN          default oc
   VERIFY_GROUP    kcat consumer group default verify-pipeline
 
-See docs/07-validation-runbook.md and docs/08-siem-dashboards.md
+See docs/validation/runbook.md and docs/optional/siem-dashboards.md
 EOF
 }
 

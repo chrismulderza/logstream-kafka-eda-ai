@@ -6,12 +6,12 @@ This repository is an **administrator pack**: a step-by-step deployment guide pl
 
 ## Read the guide
 
-The published book opens with a full [Introduction](docs/index.md) (problem statement, pipeline, safety model, chapter map), then walks through architecture to SIEM.
+The published book opens with [Overview](docs/overview/introduction.md) (problem statement, pipeline, safety model, guide map), then Deployment, Validation, and Optional.
 
 | Format | How |
 | --- | --- |
 | GitHub Pages | https://chrismulderza.github.io/logstream-kafka-eda-ai/ |
-| Markdown in Git | Start at [`docs/index.md`](docs/index.md) |
+| Markdown in Git | Start at [`docs/overview/introduction.md`](docs/overview/introduction.md) |
 | Local preview | `pip install -r docs/requirements-docs.txt && mkdocs serve` → http://127.0.0.1:8000 |
 
 ## What this pack provides
@@ -58,7 +58,7 @@ Kafka
 | Topics | `rhel-system-logs`, `rhel-pcp-metrics`, `raw-metrics`, `enriched-events` |
 | EDA group | `ansible-eda` |
 | SIEM groups | `siem-logstash`, `siem-splunk` |
-| Worker group | `stream-worker` (only if optional chapter 6 is deployed) |
+| Worker group | `stream-worker` (only if the optional predictive worker is deployed) |
 
 ## Note on `plan.md`
 

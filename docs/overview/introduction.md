@@ -24,7 +24,7 @@ Platform, logging, and automation administrators who operate:
 - RHEL **8.10 / 9** endpoints
 - Ansible Automation Platform **2.6** Event-Driven Ansible (or **2.5** only on OCP 4.20), **or** `ansible-rulebook` on a jump host
 
-You should be comfortable applying Operator manifests, running Ansible against RHEL, and validating with `oc`, `kcat`, and `logger`. For optional Quarkus worker development, follow [chapter 6 §6.2](06-optional-predictive-ai-worker.md#62-local-development-quarkus-dev-mode): workstation deps for **macOS / Fedora / RHEL**, `mise` + **Podman** (not Docker Desktop), first-run `mise run dev`, and inject-script expected output.
+You should be comfortable applying Operator manifests, running Ansible against RHEL, and validating with `oc`, `kcat`, and `logger`. For optional Quarkus worker development, follow [Predictive worker](../optional/predictive-ai-worker.md#local-development-quarkus-dev-mode): workstation deps for **macOS / Fedora / RHEL**, `mise` + **Podman** (not Docker Desktop), first-run `mise run dev`, and inject-script expected output.
 
 ## How the pipeline fits together
 
@@ -56,14 +56,14 @@ Consumer groups are exclusive. Sharing `ansible-eda` with SIEM or the worker ste
 
 Destructive actions are **off by default**. Extra vars such as `allow_firewall_ban`, `allow_service_restart`, `allow_ipmi_reboot`, `allow_lb_isolate`, `allow_podman_prune`, and `allow_lvextend` must be set explicitly. Restart the EDA activation or CLI process after changing them.
 
-Open gates only in a change window, on a limited inventory, after [validation](07-validation-runbook.md) passes.
+Open gates only in a change window, on a limited inventory, after [validation](../validation/runbook.md) passes.
 
 ## Runtime choices
 
 There is no single prescribed stack beyond Kafka, dual-home syslog, and EDA:
 
-- **EDA:** AAP Event-Driven Ansible activations, or `ansible-rulebook` CLI — same playbooks, different control plane ([Event-Driven Ansible](05-event-driven-ansible.md)).
-- **Inference (optional):** none, vLLM, OpenShift AI, or an external OpenAI-compatible API ([Optional predictive worker](06-optional-predictive-ai-worker.md)).
+- **EDA:** AAP Event-Driven Ansible activations, or `ansible-rulebook` CLI — same playbooks, different control plane ([Event-Driven Ansible](../deployment/event-driven-ansible.md)).
+- **Inference (optional):** none, vLLM, OpenShift AI, or an external OpenAI-compatible API ([Optional predictive worker](../optional/predictive-ai-worker.md)).
 
 ## Default names
 
@@ -85,21 +85,20 @@ Changing a name means updating every producer and consumer that uses it. Copy th
 
 | Path | Purpose |
 | --- | --- |
-| [`openshift/kafka/`](../openshift/kafka/) | Namespace, Streams operator, KRaft node pools, Kafka cluster, topics |
-| [`ansible/telemetry/`](../ansible/telemetry/) | Role that adds `omkafka` + PCP exporters; never replaces ArcSight drop-ins |
-| [`ansible/eda/`](../ansible/eda/) | Rulebooks, gated playbooks, EE definition, example inventory and extra vars |
-| [`extensions/eda/rulebooks/`](../extensions/eda/rulebooks/) | AAP-scanned copies of the AAP rulebooks |
-| [`worker/`](../worker/) + [`openshift/worker/`](../openshift/worker/) | Optional Quarkus predictive stream worker (ImageStream + BuildConfig) |
-| [`scripts/`](../scripts/) | Synthetic OOM inject, storage-fill test, pipeline checks |
-| [`siem/`](../siem/) + [`grafana/`](../grafana/) | Parallel SIEM consumers and Grafana dashboards |
+| [`openshift/kafka/`](../../openshift/kafka) | Namespace, Streams operator, KRaft node pools, Kafka cluster, topics |
+| [`ansible/telemetry/`](../../ansible/telemetry) | Role that adds `omkafka` + PCP exporters; never replaces ArcSight drop-ins |
+| [`ansible/eda/`](../../ansible/eda) | Rulebooks, gated playbooks, EE definition, example inventory and extra vars |
+| [`extensions/eda/rulebooks/`](../../extensions/eda/rulebooks) | AAP-scanned copies of the AAP rulebooks |
+| [`worker/`](../../worker) + [`openshift/worker/`](../../openshift/worker) | Optional Quarkus predictive stream worker (ImageStream + BuildConfig) |
+| [`scripts/`](../../scripts) | Synthetic OOM inject, storage-fill test, pipeline checks |
+| [`siem/`](../../siem) + [`grafana/`](../../grafana) | Parallel SIEM consumers and Grafana dashboards |
 
 ## How to use this book
 
-1. Read [Architecture](01-architecture.md) so topic names, listeners, and consumer groups stay consistent.
-2. Complete [Prerequisites](02-prerequisites.md) before changing production hosts or the cluster.
-3. Deploy [Kafka](03-kafka-openshift.md) and [RHEL telemetry](04-rhel-telemetry.md), then [Event-Driven Ansible](05-event-driven-ansible.md) for the ten syslog events.
-4. Skip the [optional predictive worker](06-optional-predictive-ai-worker.md) unless you need PCP time-to-exhaustion.
-5. Run [Validation](07-validation-runbook.md) before enabling remediation safety gates, then wire [SIEM and dashboards](08-siem-dashboards.md) if required.
+1. Read [Architecture](architecture.md) so topic names, listeners, and consumer groups stay consistent, then complete [Prerequisites](prerequisites.md) before changing production hosts or the cluster.
+2. Deploy [Kafka on OpenShift](../deployment/kafka-openshift.md), [RHEL telemetry](../deployment/rhel-telemetry.md), and [Event-Driven Ansible](../deployment/event-driven-ansible.md) for the ten syslog events.
+3. Run [Validation](../validation/runbook.md) before enabling remediation safety gates.
+4. Add the [predictive worker](../optional/predictive-ai-worker.md) only if you need PCP time-to-exhaustion, and [SIEM and dashboards](../optional/siem-dashboards.md) if you need parallel consumers.
 
 Preview locally:
 
@@ -108,19 +107,19 @@ pip install -r docs/requirements-docs.txt
 mkdocs serve
 ```
 
-## Chapter map
+## Guide map
 
-| Chapter | What you deploy | Artifacts |
-| --- | --- | --- |
-| [1. Architecture](01-architecture.md) | Contracts and data flow | — |
-| [2. Prerequisites](02-prerequisites.md) | Versions, network, security | — |
-| [3. Kafka on OpenShift](03-kafka-openshift.md) | Streams for Apache Kafka, KRaft, topics | [`openshift/kafka/`](../openshift/kafka/) |
-| [4. RHEL telemetry](04-rhel-telemetry.md) | rsyslog omkafka **in addition to** ArcSight, PCP | [`ansible/telemetry/`](../ansible/telemetry/) |
-| [5. Event-Driven Ansible](05-event-driven-ansible.md) | Ten syslog rules and gated remediations | [`ansible/eda/`](../ansible/eda/) |
-| [6. Optional predictive worker](06-optional-predictive-ai-worker.md) | Stream worker and inference client | [`worker/`](../worker/), [`openshift/worker/`](../openshift/worker/) |
-| [7. Validation](07-validation-runbook.md) | Synthetic tests and CLI checks | [`scripts/`](../scripts/) |
-| [8. SIEM and dashboards](08-siem-dashboards.md) | Parallel consumers and Grafana | [`siem/`](../siem/), [`grafana/`](../grafana/) |
+| Section | Page | What you deploy | Artifacts |
+| --- | --- | --- | --- |
+| Overview | [Architecture](architecture.md) | Contracts and data flow | — |
+| Overview | [Prerequisites](prerequisites.md) | Versions, network, security | — |
+| Deployment | [Kafka on OpenShift](../deployment/kafka-openshift.md) | Streams for Apache Kafka, KRaft, topics | [`openshift/kafka/`](../../openshift/kafka) |
+| Deployment | [RHEL telemetry](../deployment/rhel-telemetry.md) | rsyslog omkafka **in addition to** ArcSight, PCP | [`ansible/telemetry/`](../../ansible/telemetry) |
+| Deployment | [Event-Driven Ansible](../deployment/event-driven-ansible.md) | Ten syslog rules and gated remediations | [`ansible/eda/`](../../ansible/eda) |
+| Validation | [Runbook](../validation/runbook.md) | Synthetic tests and CLI checks | [`scripts/`](../../scripts) |
+| Optional | [Predictive worker](../optional/predictive-ai-worker.md) | Stream worker and inference client | [`worker/`](../../worker), [`openshift/worker/`](../../openshift/worker) |
+| Optional | [SIEM and dashboards](../optional/siem-dashboards.md) | Parallel consumers and Grafana | [`siem/`](../../siem), [`grafana/`](../../grafana) |
 
 ## Next
 
-Continue with [Architecture](01-architecture.md).
+Continue with [Architecture](architecture.md).

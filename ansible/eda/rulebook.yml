@@ -1,6 +1,6 @@
 ---
 # Dual-home syslog: rhel-system-logs only. Predictive rules live in
-# rulebook-optional-predictive.yml (see docs/06-optional-predictive-ai-worker.md).
+# rulebook-optional-predictive.yml (see docs/optional/predictive-ai-worker.md).
 #
 # ansible.eda.kafka uses host + port. JSON is under event.body (and flattened).
 # CLI: run_playbook. AAP: aap-rulebook.yml (run_job_template).

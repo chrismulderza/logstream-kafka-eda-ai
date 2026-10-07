@@ -17,7 +17,7 @@ Optional Quarkus predictive worker + OpenShift Kafka/EDA book. Core pipeline is 
 
 - Optional enrichment only. TTE / alert emission is deterministic.
 - No hardcoded severity/score/root-cause rules — see prompts in `worker/.../infer/Prompts.java` and [`worker/README.md`](worker/README.md).
-- Local Ollama procedure + model bench: docs §6.2.10; recommended model `granite3.3:2b`. Prefer IBM Granite. Clean up with `ollama rm` when done.
+- Local Ollama procedure + model bench: [docs/optional/predictive-ai-worker.md](docs/optional/predictive-ai-worker.md) (Local inference testing with Ollama); recommended model `granite3.3:2b`. Prefer IBM Granite. Clean up with `ollama rm` when done.
 - Do not set `INFERENCE_BASE_URL` to `""` (omit the var). OpenShift ConfigMap should omit empty keys.
 
 ## Docs

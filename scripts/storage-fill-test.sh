@@ -28,7 +28,7 @@ Environment:
   FILL_PATH   default /var/log/test_fill.img
   FILL_SIZE   default 5G (fallocate -l syntax)
 
-Related: scripts/verify-pipeline.sh, docs/07-validation-runbook.md
+Related: scripts/verify-pipeline.sh, docs/validation/runbook.md
 EOF
 }
 

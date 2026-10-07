@@ -1,5 +1,5 @@
 ---
-# Optional: consume enriched-events from the predictive worker (chapter 6).
+# Optional: consume enriched-events from the predictive worker (docs/optional/predictive-ai-worker.md).
 # Do not run this in the same process as rulebook.yml unless you share
 # kafka_group_id: ansible-eda and accept two sources in that group.
 

@@ -1,15 +1,15 @@
-# 5. Event-Driven Ansible
+# Event-Driven Ansible
 
-This chapter is the **core automation path**: RHEL syslog already dual-homed to ArcSight and Kafka (`rhel-system-logs`) is matched by Event-Driven Ansible (EDA). Each of the ten catalog events below has a rule, a playbook, and a SIEM use. Predictive analytics is **not** required; skip the [optional predictive worker](06-optional-predictive-ai-worker.md) unless you want PCP time-to-exhaustion.
+This chapter is the **core automation path**: RHEL syslog already dual-homed to ArcSight and Kafka (`rhel-system-logs`) is matched by Event-Driven Ansible (EDA). Each of the ten catalog events below has a rule, a playbook, and a SIEM use. Predictive analytics is **not** required; skip the [optional predictive worker](../optional/predictive-ai-worker.md) unless you want PCP time-to-exhaustion.
 
 Two runtimes are first-class: **Ansible Automation Platform (AAP) 2.5/2.6 rulebook activations** and the **`ansible-rulebook` CLI**. On OpenShift **4.21**, use AAP **2.6** (2.5 Operators stop at OCP 4.20). Artifacts live in `ansible/eda/`.
 
-## 5.1 What EDA consumes
+## What EDA consumes
 
 | Stream | Topic | Typical payload | Rules |
 | --- | --- | --- | --- |
 | Host syslog (rsyslog / omkafka) | `rhel-system-logs` | JSON with `host`, `message`, `@timestamp` | Ten catalog rules in `rulebook.yml` |
-| Optional worker ([chapter 6](06-optional-predictive-ai-worker.md)) | `enriched-events` | `alert_type` / `type` | `rulebook-optional-predictive.yml` only |
+| Optional worker ([Predictive worker](../optional/predictive-ai-worker.md)) | `enriched-events` | `alert_type` / `type` | `rulebook-optional-predictive.yml` only |
 
 The `ansible.eda.kafka` source plugin takes **`host` and `port`**, not `bootstrap_servers`. JSON values are **`event.body`** (and flattened `event.message`).
 
@@ -32,7 +32,7 @@ flowchart LR
   eda --> pb
 ```
 
-## 5.2 Event catalog (syslog → EDA + SIEM)
+## Event catalog (syslog → EDA + SIEM)
 
 Match strings are substrings of the rsyslog JSON `message` field (and `syslogtag` may still be `sshd`, `kernel`, `sudo`, and so on). Rules throttle per host so a log storm does not fork unbounded jobs.
 
@@ -51,7 +51,7 @@ Match strings are substrings of the rsyslog JSON `message` field (and `syslogtag
 
 Destructive steps stay **fail-closed**. With default extra vars, playbooks collect evidence or notify; they do not ban IPs, restart units, isolate hosts, or power-cycle.
 
-## 5.3 Per-event automation notes
+## Per-event automation notes
 
 **OOM.** Default path writes `/var/tmp/eda-oom-diagnostics/`. Set `allow_service_restart=true` **and** `service_name` to restart a crashed unit. Set `allow_drop_caches=true` only in a change window (writes `/proc/sys/vm/drop_caches`). Memory scale-out is a human or platform action; this playbook does not resize VMs.
 
@@ -73,7 +73,7 @@ Destructive steps stay **fail-closed**. With default extra vars, playbooks colle
 
 **DNF/YUM.** Informational. If `package_baseline_file` is set on the control node, the playbook flags lines not present in that file.
 
-## 5.4 Decision matrix: AAP vs ansible-rulebook CLI
+## Decision matrix: AAP vs ansible-rulebook CLI
 
 Treat both as production-capable. The difference is control plane, not the Kafka contract or playbooks.
 
@@ -91,7 +91,7 @@ Treat both as production-capable. The difference is control plane, not the Kafka
 
 `run_playbook` is **CLI-only**. `run_job_template` is **AAP-only**. Do not enable an AAP activation against `rulebook.yml`.
 
-## 5.5 Shared artifacts
+## Shared artifacts
 
 | Path | Role |
 | --- | --- |
@@ -99,7 +99,7 @@ Treat both as production-capable. The difference is control plane, not the Kafka
 | `ansible/eda/rulebook.yml` | CLI syslog catalog, `run_playbook` |
 | `ansible/eda/aap-rulebook.yml` | AAP syslog catalog, `run_job_template` |
 | `extensions/eda/rulebooks/aap-rulebook.yml` | Path AAP actually scans |
-| `ansible/eda/rulebook-optional-predictive.yml` | Optional `enriched-events` (chapter 6) |
+| `ansible/eda/rulebook-optional-predictive.yml` | Optional `enriched-events` (the predictive worker) |
 | `ansible/eda/playbooks/*.yml` | One playbook per catalog event (+ optional disk TTE) |
 | `ansible/eda/inventory/hosts.example.yml` | Sample `rhel_telemetry` inventory |
 | `ansible/eda/vars/extra_vars.example.yml` | Kafka connection + safety gates (all destructive flags false) |
@@ -107,7 +107,7 @@ Treat both as production-capable. The difference is control plane, not the Kafka
 
 Copy `extra_vars.example.yml` to a non-committed file (for example `extra_vars.yml`) before adding passwords or key paths.
 
-## 5.6 Safety gates (both runtimes)
+## Safety gates (both runtimes)
 
 Defaults are fail-closed. Playbooks assert and skip rather than guess.
 
@@ -121,11 +121,11 @@ Defaults are fail-closed. Playbooks assert and skip rather than guess.
 | `allow_ipmi_reboot` | `false` | `ipmitool chassis power cycle` |
 | `allow_nmcli_reset` | `false` | `nmcli` down/up of `nmcli_connection` |
 | `require_change_ticket` | `false` | Fail user-mgmt jobs without `change_ticket_id` |
-| `allow_podman_prune` / `allow_lvextend` | `false` | Optional predictive playbook only (chapter 6) |
+| `allow_podman_prune` / `allow_lvextend` | `false` | Optional predictive playbook only (the predictive worker) |
 
 After enabling any gate, re-close it in extra vars and restart the activation or CLI process so the next event cannot inherit a leftover true flag.
 
-## 5.7 Runtime A — AAP 2.5/2.6 (full admin steps)
+## Runtime A — AAP 2.5/2.6 (full admin steps)
 
 Prerequisites: AAP **2.6** on OpenShift 4.20–4.21 (or AAP **2.5** only if the cluster is 4.20); Event-Driven Ansible and automation controller; a git remote AAP can clone over HTTPS; a container registry the controllers can pull; Kafka reachable from the activation network (in-cluster `host` + port `9092`, or the TLS route on **443**).
 
@@ -215,7 +215,7 @@ oc -n logstream-kafka exec telemetry-broker-0 -- \
 
 Optional AAP click-path detail: `ansible/eda/aap-notes.md`.
 
-## 5.8 Runtime B — ansible-rulebook CLI (full admin steps)
+## Runtime B — ansible-rulebook CLI (full admin steps)
 
 Prerequisites: a host that can reach Kafka `host:port`, SSH (or local) access to RHEL endpoints in inventory, Java 17+, Python 3.9+, and (recommended) the same DE image as AAP.
 
@@ -278,7 +278,7 @@ ansible-playbook -i inventory/hosts.yml playbooks/notify_soc.yml \
 
 Open a gate only with an explicit extra var, for example `-e allow_service_restart=true -e service_name=sssd` on a single `--limit` host.
 
-## 5.9 Kafka connectivity notes
+## Kafka connectivity notes
 
 Internal listener (cluster network): `kafka_host: telemetry-kafka-plain-bootstrap.logstream-kafka.svc`, `kafka_port: "9092"`, `kafka_security_protocol: PLAINTEXT` (or the SASL settings your Kafka CR actually uses).
 
@@ -286,9 +286,9 @@ External OpenShift Route (`tls-external`): `kafka_port: "9094"`, `security_proto
 
 `offset: latest` (default in extra vars) ignores backlog on first start. Use `earliest` only in empty lab topics.
 
-## 5.10 Verify the ten rules
+## Verify the ten rules
 
-Inject lines on a dual-homed RHEL host (same `logger` path as [chapter 7](07-validation-runbook.md)). Watch CLI `--verbose` or the AAP activation log for a match. With default extra vars, expect diagnostics or notify — **not** firewall, restart, isolate, or IPMI.
+Inject lines on a dual-homed RHEL host (same `logger` path as [Validation](../validation/runbook.md)). Watch CLI `--verbose` or the AAP activation log for a match. With default extra vars, expect diagnostics or notify — **not** firewall, restart, isolate, or IPMI.
 
 ```bash
 logger -p kern.err -t kernel -- "Out of memory: Kill process 1234"
@@ -305,7 +305,7 @@ logger -t dnf -- "Installed: tree-1.8.0-1.el9.x86_64"
 
 Confirm ArcSight still receives the same lines. Confirm Kafka `rhel-system-logs` with group `verify-pipeline` (never `ansible-eda`).
 
-## 5.11 Operational checklist
+## Operational checklist
 
 - [ ] Consumer group `ansible-eda` is used only by this rulebook.
 - [ ] Topic `rhel-system-logs` exists and is readable from the runtime network.
@@ -316,4 +316,4 @@ Confirm ArcSight still receives the same lines. Confirm Kafka `rhel-system-logs`
 
 ## Next
 
-Prove the syslog path in [Validation](07-validation-runbook.md). Deploy the [optional predictive worker](06-optional-predictive-ai-worker.md) only if you need PCP time-to-exhaustion.
+Prove the syslog path in [Validation](../validation/runbook.md). Deploy the [optional predictive worker](../optional/predictive-ai-worker.md) only if you need PCP time-to-exhaustion.

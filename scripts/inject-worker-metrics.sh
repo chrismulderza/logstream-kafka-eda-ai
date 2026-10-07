@@ -36,7 +36,7 @@ Options:
   --consume                   After inject, print enriched-events briefly
   -h, --help                  Show this help
 
-Workstation requirements (see docs/06 §6.2):
+Workstation requirements (see docs/optional/predictive-ai-worker.md, Local development):
   Preferred (via mise in worker/):
     - java, maven, quarkus, python, uv  —  mise install
     - Podman (required) for Kafka Dev Services — not Docker Desktop

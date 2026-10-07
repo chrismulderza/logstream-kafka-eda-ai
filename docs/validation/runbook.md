@@ -1,10 +1,10 @@
-# 7. Validation
+# Validation
 
-Prove the event-driven pipeline on OpenShift namespace `logstream-kafka`, Kafka cluster `telemetry`, and attached RHEL hosts. Assume Kafka, host telemetry, and Event-Driven Ansible from chapters 3–5 are already deployed. Section 7.6 (storage fill) applies only if you deployed the [optional predictive worker](06-optional-predictive-ai-worker.md).
+Prove the event-driven pipeline on OpenShift namespace `logstream-kafka`, Kafka cluster `telemetry`, and attached RHEL hosts. Assume Kafka, RHEL telemetry, and Event-Driven Ansible are already deployed. The [storage-fill test](#optional-synthetic-test-b-storage-fill-predictive-worker) applies only if you deployed the [predictive worker](../optional/predictive-ai-worker.md).
 
-Companion SIEM and Grafana work is in [SIEM and dashboards](08-siem-dashboards.md).
+Companion SIEM and Grafana work is in [SIEM and dashboards](../optional/siem-dashboards.md).
 
-## 7.1 Scope and naming
+## Scope and naming
 
 | Item | Value |
 |------|--------|
@@ -22,30 +22,30 @@ Scripts in this repository:
 
 | Script | Where to run | Tools required on that machine |
 | --- | --- | --- |
-| [scripts/inject-oom-log.sh](../scripts/inject-oom-log.sh) | Dual-homed **RHEL** endpoint | `logger` (util-linux) |
-| [scripts/storage-fill-test.sh](../scripts/storage-fill-test.sh) | Lab **RHEL** host with free space on `/var/log` | `fallocate`, `df`, `rm` |
-| [scripts/verify-pipeline.sh](../scripts/verify-pipeline.sh) | Workstation or jump host with cluster access | `oc` and/or `kcat` (script prints placeholders if missing) |
-| [scripts/inject-worker-metrics.sh](../scripts/inject-worker-metrics.sh) / [inject_worker_metrics.py](../scripts/inject_worker_metrics.py) | **Developer workstation** (Quarkus Dev Services) | macOS/Fedora/RHEL setup, `mise run inject-metrics -- --consume`, and expected `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` output — [chapter 6 §6.2](06-optional-predictive-ai-worker.md#62-local-development-quarkus-dev-mode) |
+| [scripts/inject-oom-log.sh](../../scripts/inject-oom-log.sh) | Dual-homed **RHEL** endpoint | `logger` (util-linux) |
+| [scripts/storage-fill-test.sh](../../scripts/storage-fill-test.sh) | Lab **RHEL** host with free space on `/var/log` | `fallocate`, `df`, `rm` |
+| [scripts/verify-pipeline.sh](../../scripts/verify-pipeline.sh) | Workstation or jump host with cluster access | `oc` and/or `kcat` (script prints placeholders if missing) |
+| [scripts/inject-worker-metrics.sh](../../scripts/inject-worker-metrics.sh) / [inject_worker_metrics.py](../../scripts/inject_worker_metrics.py) | **Developer workstation** (Quarkus Dev Services) | macOS/Fedora/RHEL setup, `mise run inject-metrics -- --consume`, and expected `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` output — [Predictive worker](../optional/predictive-ai-worker.md#local-development-quarkus-dev-mode) |
 
 Dashboards used during validation:
 
-- [grafana/kafka-throughput-lag.json](../grafana/kafka-throughput-lag.json)
-- [grafana/pcp-system-metrics.json](../grafana/pcp-system-metrics.json)
+- [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json)
+- [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json)
 
-## 7.2 Safety
+## Safety
 
 1. Run synthetic tests on a lab host first.
 2. The storage-fill test **allocates 5 GiB** on the log filesystem (`fallocate -l 5G /var/log/test_fill.img`). On a small `/var` this can cause a **real** outage. Always run cleanup (`rm` of the image) in the same change window.
-3. `kcat` in [scripts/verify-pipeline.sh](../scripts/verify-pipeline.sh) uses group `verify-pipeline`. Never point `kcat -G` at `ansible-eda`, `stream-worker`, `siem-logstash`, or `siem-splunk`.
+3. `kcat` in [scripts/verify-pipeline.sh](../../scripts/verify-pipeline.sh) uses group `verify-pipeline`. Never point `kcat -G` at `ansible-eda`, `stream-worker`, `siem-logstash`, or `siem-splunk`.
 4. Do not leave `test_fill.img` in place on production.
 
-## 7.3 Prerequisites checklist
+## Prerequisites checklist
 
 | Step | Action | Pass | Fail |
 |------|--------|------|------|
 | P1 | `oc` login works; `oc project logstream-kafka` (or `-n logstream-kafka`) | Current context is the cluster; you can list namespaced objects | `Unauthorized`, wrong cluster, or namespace missing |
 | P2 | `oc get kafka telemetry -n logstream-kafka` shows Ready | `Ready` / listeners present | CR missing or `NotReady` |
-| P3 | `oc get kafkatopic -n logstream-kafka` lists all four topics | Names match the table in 7.1 | Topic missing or wrong retention |
+| P3 | `oc get kafkatopic -n logstream-kafka` lists all four topics | Names match the table in [Scope and naming](#scope-and-naming) | Topic missing or wrong retention |
 | P4 | Broker pods in `logstream-kafka` are Running | 3 brokers (and 3 controllers if using node pools) Running | CrashLoop, pending PVCs |
 | P5 | RHEL host: `rsyslog` and `pcp2kafka.service` (or equivalent) active | `systemctl is-active` is `active` | Unit failed; no Kafka produce |
 | P5b | Existing ArcSight rsyslog drop-ins still present and unchanged | `ls /etc/rsyslog.d` plus connector still receiving | Kafka onboarding overwrote SIEM forwarding |
@@ -67,7 +67,7 @@ Make scripts executable once:
 chmod +x scripts/inject-oom-log.sh scripts/storage-fill-test.sh scripts/verify-pipeline.sh scripts/inject-worker-metrics.sh
 ```
 
-## 7.4 Baseline cluster and topic inspection
+## Baseline cluster and topic inspection
 
 Set placeholders for your environment:
 
@@ -107,9 +107,9 @@ kcat -b "${BOOTSTRAP}" -t rhel-system-logs -L
 | B1 | Kafka CR Ready; node pools present | Operator not reconciling |
 | B2 | Topics `rhel-system-logs`, `rhel-pcp-metrics`, `raw-metrics`, `enriched-events` exist | Missing KafkaTopic |
 | B3 | `kcat -L` shows brokers and the four topics | Empty metadata, auth error |
-| B4 | Grafana Kafka dashboard (after import per [chapter 08](08-siem-dashboards.md)) shows bytes/messages in | All panels `No data` and brokers idle |
+| B4 | Grafana Kafka dashboard (after import per [SIEM and dashboards](../optional/siem-dashboards.md)) shows bytes/messages in | All panels `No data` and brokers idle |
 
-## 7.5 Synthetic test A — OOM log injection
+## Synthetic test A — OOM log injection
 
 **Purpose:** prove `omkafka` JSON on `rhel-system-logs` **and** that existing ArcSight forwarding still receives the same line. EDA group `ansible-eda` matches an OOM rule; SIEM on Kafka uses **their own** groups.
 
@@ -171,9 +171,9 @@ logger -t systemd -- "Failed to start sshd.service"
 logger -t dnf -- "Installed: tree-1.8.0-1.el9.x86_64"
 ```
 
-Full catalog: [chapter 5](05-event-driven-ansible.md).
+Full catalog: [Event-Driven Ansible](../deployment/event-driven-ansible.md).
 
-## 7.6 Optional synthetic test B — storage fill (predictive worker)
+## Optional synthetic test B — storage fill (predictive worker)
 
 **Purpose:** raise filesystem used so PCP (`rhel-pcp-metrics` / `raw-metrics`) trends up and `stream-worker` publishes `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` on `enriched-events`.
 
@@ -187,7 +187,7 @@ df -h /var/log
 ./scripts/storage-fill-test.sh create
 ```
 
-Watch PCP / Grafana [grafana/pcp-system-metrics.json](../grafana/pcp-system-metrics.json) filesys used %. Tail worker output:
+Watch PCP / Grafana [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) filesys used %. Tail worker output:
 
 ```bash
 oc logs -n logstream-kafka -l app.kubernetes.io/name=predictive-ai-worker --tail=100 -f
@@ -217,14 +217,14 @@ df -h /var/log
 
 If create fails because the file exists, run `cleanup` then `create`.
 
-## 7.7 Consumer group and lag verification
+## Consumer group and lag verification
 
-Lag belongs on [grafana/kafka-throughput-lag.json](../grafana/kafka-throughput-lag.json) (Prometheus/Strimzi kafka-exporter). Groups that **must** appear as four distinct series:
+Lag belongs on [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json) (Prometheus/Strimzi kafka-exporter). Groups that **must** appear as four distinct series:
 
 - `ansible-eda`
 - `stream-worker`
-- `siem-logstash` (only after Logstash is deployed — [siem/logstash-kafka.conf](../siem/logstash-kafka.conf))
-- `siem-splunk` (only after Splunk Connect — [siem/splunk-connect-kafka.yaml](../siem/splunk-connect-kafka.yaml))
+- `siem-logstash` (only after Logstash is deployed — [siem/logstash-kafka.conf](../../siem/logstash-kafka.conf))
+- `siem-splunk` (only after Splunk Connect — [siem/splunk-connect-kafka.yaml](../../siem/splunk-connect-kafka.yaml))
 
 | Step | Pass | Fail |
 |------|------|------|
@@ -239,9 +239,9 @@ Kafka Exporter / Strimzi metrics placeholders (Prometheus):
 sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~"ansible-eda|stream-worker|siem-logstash|siem-splunk"})
 ```
 
-## 7.8 End-to-end pass/fail (sign-off)
+## End-to-end pass/fail (sign-off)
 
-Record date, operator, cluster, and host. All of **Must-pass** must be Pass before production SIEM cutover ([chapter 08](08-siem-dashboards.md)).
+Record date, operator, cluster, and host. All of **Must-pass** must be Pass before production SIEM cutover ([SIEM and dashboards](../optional/siem-dashboards.md)).
 
 | ID | Control | Pass | Fail |
 |----|---------|------|------|
@@ -256,19 +256,19 @@ Record date, operator, cluster, and host. All of **Must-pass** must be Pass befo
 
 **Rollback:** `./scripts/storage-fill-test.sh cleanup`; stop extra `kcat -G` processes; do not reset production consumer groups.
 
-## 7.9 Related files
+## Related files
 
 | File | Role |
 |------|------|
-| [scripts/inject-oom-log.sh](../scripts/inject-oom-log.sh) | OOM synthetic |
-| [scripts/storage-fill-test.sh](../scripts/storage-fill-test.sh) | Disk synthetic + cleanup |
-| [scripts/verify-pipeline.sh](../scripts/verify-pipeline.sh) | oc/kcat placeholders |
-| [grafana/kafka-throughput-lag.json](../grafana/kafka-throughput-lag.json) | Throughput and lag |
-| [grafana/pcp-system-metrics.json](../grafana/pcp-system-metrics.json) | Host PCP / filesys |
-| [siem/logstash-kafka.conf](../siem/logstash-kafka.conf) | Logstash group `siem-logstash` |
-| [siem/splunk-connect-kafka.yaml](../siem/splunk-connect-kafka.yaml) | Splunk group `siem-splunk` |
-| [08-siem-dashboards.md](08-siem-dashboards.md) | SIEM and dashboard import |
+| [scripts/inject-oom-log.sh](../../scripts/inject-oom-log.sh) | OOM synthetic |
+| [scripts/storage-fill-test.sh](../../scripts/storage-fill-test.sh) | Disk synthetic + cleanup |
+| [scripts/verify-pipeline.sh](../../scripts/verify-pipeline.sh) | oc/kcat placeholders |
+| [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json) | Throughput and lag |
+| [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) | Host PCP / filesys |
+| [siem/logstash-kafka.conf](../../siem/logstash-kafka.conf) | Logstash group `siem-logstash` |
+| [siem/splunk-connect-kafka.yaml](../../siem/splunk-connect-kafka.yaml) | Splunk group `siem-splunk` |
+| [SIEM and dashboards](../optional/siem-dashboards.md) | SIEM and dashboard import |
 
 ## Next
 
-Continue with [SIEM and dashboards](08-siem-dashboards.md) for parallel Logstash/Splunk consumers and Grafana.
+Continue with [SIEM and dashboards](../optional/siem-dashboards.md) for parallel Logstash/Splunk consumers and Grafana.

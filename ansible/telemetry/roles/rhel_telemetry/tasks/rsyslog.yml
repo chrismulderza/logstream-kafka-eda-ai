@@ -1,6 +1,6 @@
 ---
 # Kafka is an *additional* rsyslog destination. Never replace /etc/rsyslog.conf
-# or existing ArcSight / SIEM drop-ins. See docs/04-rhel-telemetry.md.
+# or existing ArcSight / SIEM drop-ins. See docs/deployment/rhel-telemetry.md.
 
 - name: Refuse to write Kafka config over /etc/rsyslog.conf
   ansible.builtin.assert:

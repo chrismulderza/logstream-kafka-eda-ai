@@ -13,7 +13,7 @@ When `INFERENCE_BASE_URL` is **unset**, metric alerts still emit and LLM classif
 
 Alert type string (do not change): `PREEMPTIVE_STORAGE_EXHAUSTION_RISK`.
 
-**Full workstation setup (macOS / Fedora / RHEL), first-run steps, inject scripts, and expected output:** [docs chapter 6 §6.2](../docs/06-optional-predictive-ai-worker.md#62-local-development-quarkus-dev-mode).
+**Full workstation setup (macOS / Fedora / RHEL), first-run steps, inject scripts, and expected output:** [Local development (Quarkus dev mode)](../docs/optional/predictive-ai-worker.md#local-development-quarkus-dev-mode).
 
 ## What inference does (and does not)
 
@@ -97,7 +97,7 @@ Stop: press `q` in the Quarkus console, or terminate the `mise run dev` process.
 
 ## Local LLM testing (Ollama)
 
-Step-by-step procedure (start Ollama → pull `granite3.3:2b` → export `INFERENCE_*` → `mise run dev` → inject → `ollama rm` cleanup): [docs §6.2.10](../docs/06-optional-predictive-ai-worker.md#6210-local-inference-testing-with-ollama).
+Step-by-step procedure (start Ollama → pull `granite3.3:2b` → export `INFERENCE_*` → `mise run dev` → inject → `ollama rm` cleanup): [Local inference testing with Ollama](../docs/optional/predictive-ai-worker.md#local-inference-testing-with-ollama).
 
 ```bash
 ollama serve   # if needed
@@ -130,7 +130,7 @@ podman build -t predictive-ai-worker:latest -f Dockerfile .
 
 JVM images: `registry.access.redhat.com/ubi9/openjdk-21*:1.24` (OpenJDK). Native micro: `quay.io/quarkus/ubi9-quarkus-micro-image:2.0`. GitHub Actions verifies allowed bases and builds docs in `ubi9/python-312`.
 
-Details: [`openshift/worker/README.md`](../openshift/worker/README.md) and [chapter 6](../docs/06-optional-predictive-ai-worker.md).
+Details: [`openshift/worker/README.md`](../openshift/worker/README.md) and the [predictive worker](../docs/optional/predictive-ai-worker.md).
 
 ## Environment
 

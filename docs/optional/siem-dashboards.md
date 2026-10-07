@@ -1,10 +1,10 @@
-# 8. SIEM and Dashboards
+# SIEM and Dashboards
 
 Wire parallel SIEM consumers and Grafana operations views. Kafka cluster `telemetry` in namespace `logstream-kafka` remains the system of record. Event-Driven Ansible (`ansible-eda`) **must keep an exclusive consumer group**. If you deploy the optional predictive worker, it uses `stream-worker` exclusively. SIEM uses only `siem-logstash` and `siem-splunk`.
 
-Validation of produce/consume paths is in [Validation](07-validation-runbook.md).
+Validation of produce/consume paths is in [Validation](../validation/runbook.md).
 
-## 8.1 Architecture
+## Architecture
 
 ```mermaid
 flowchart TB
@@ -53,7 +53,7 @@ Host-level ArcSight stays on rsyslog. Kafka-side SIEM (this chapter) is a **para
 
 ### Syslog catalog detections (SIEM)
 
-Correlate in SIEM even when EDA gates are closed. Patterns match [chapter 5](05-event-driven-ansible.md).
+Correlate in SIEM even when EDA gates are closed. Patterns match [Event-Driven Ansible](../deployment/event-driven-ansible.md).
 
 | Event | Search / identifier | SIEM value |
 | --- | --- | --- |
@@ -70,25 +70,25 @@ Correlate in SIEM even when EDA gates are closed. Patterns match [chapter 5](05-
 
 Config files:
 
-- [siem/logstash-kafka.conf](../siem/logstash-kafka.conf)
-- [siem/splunk-connect-kafka.yaml](../siem/splunk-connect-kafka.yaml)
-- [grafana/kafka-throughput-lag.json](../grafana/kafka-throughput-lag.json)
-- [grafana/pcp-system-metrics.json](../grafana/pcp-system-metrics.json)
+- [siem/logstash-kafka.conf](../../siem/logstash-kafka.conf)
+- [siem/splunk-connect-kafka.yaml](../../siem/splunk-connect-kafka.yaml)
+- [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json)
+- [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json)
 
-## 8.2 Prerequisites checklist
+## Prerequisites checklist
 
 | Step | Action | Pass | Fail |
 |------|--------|------|------|
-| P1 | Chapters 03–05 complete; [07](07-validation-runbook.md) E1–E4 preferably Pass | Pipeline already produces | Empty topics |
+| P1 | Deployment complete; [07](../validation/runbook.md) E1–E4 preferably Pass | Pipeline already produces | Empty topics |
 | P2 | Prometheus scrapes Strimzi / Kafka Exporter (for Grafana Kafka dashboard) | `kafka_consumergroup_lag` or `kafka_server_brokertopicmetrics_*` present | No Kafka metrics |
-| P3 | Optional: PCP via pmproxy Prometheus or equivalent for [pcp-system-metrics.json](../grafana/pcp-system-metrics.json) | CPU/mem/filesys series exist | Use Kafka messages-in panel only |
+| P3 | Optional: PCP via pmproxy Prometheus or equivalent for [pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) | CPU/mem/filesys series exist | Use Kafka messages-in panel only |
 | P4 | Elasticsearch/HEC endpoints reachable from SIEM consumers | TLS and tokens valid | 401/timeout |
 | P5 | NetworkPolicy/SCC allow SIEM pods to `telemetry-kafka-plain-bootstrap.logstream-kafka.svc:9092` (or Route **443**) | TCP connect succeeds | Policy drop |
 
-## 8.3 Grafana: import Kafka throughput and lag
+## Grafana: import Kafka throughput and lag
 
 1. Grafana → **Dashboards** → **Import**.
-2. Upload [grafana/kafka-throughput-lag.json](../grafana/kafka-throughput-lag.json) (UID `logstream-kafka`).
+2. Upload [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json) (UID `logstream-kafka`).
 3. Select the Prometheus datasource that scrapes the OpenShift user workload / user-workload monitoring or your Strimzi PodMonitor.
 4. Confirm variables:
    - `namespace` = `logstream-kafka`
@@ -96,7 +96,7 @@ Config files:
    - `topic` regex includes `rhel-system-logs`, `rhel-pcp-metrics`, `raw-metrics`, `enriched-events`
    - `group` regex includes `ansible-eda`, `stream-worker`, `siem-logstash`, `siem-splunk`
 5. Set time range `now-1h`, refresh `30s`.
-6. Generate traffic with [scripts/inject-oom-log.sh](../scripts/inject-oom-log.sh) if the cluster is idle ([runbook](07-validation-runbook.md)).
+6. Generate traffic with [scripts/inject-oom-log.sh](../../scripts/inject-oom-log.sh) if the cluster is idle ([runbook](../validation/runbook.md)).
 
 | Step | Pass | Fail |
 |------|------|------|
@@ -106,12 +106,12 @@ Config files:
 | G4 | Lag panel shows **separate** series per group after SIEM is on | SIEM missing or sharing `ansible-eda` |
 | G5 | After OOM inject, `rhel-system-logs` rate ticks up | omkafka not producing |
 
-## 8.4 Grafana: import PCP system metrics
+## Grafana: import PCP system metrics
 
-1. Import [grafana/pcp-system-metrics.json](../grafana/pcp-system-metrics.json) (UID `logstream-pcp`).
+1. Import [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) (UID `logstream-pcp`).
 2. Bind the same or a pmproxy Prometheus datasource.
 3. If PCP names differ in your scrape (prefix `pcp_` vs raw `filesys_used`), panels use `or` fallbacks; adjust PromQL if your exporter uses another convention.
-4. Align with storage-fill: run `create` from [scripts/storage-fill-test.sh](../scripts/storage-fill-test.sh), confirm filesys used % rises, then **cleanup**.
+4. Align with storage-fill: run `create` from [scripts/storage-fill-test.sh](../../scripts/storage-fill-test.sh), confirm filesys used % rises, then **cleanup**.
 
 | Step | Pass | Fail |
 |------|------|------|
@@ -120,14 +120,14 @@ Config files:
 | M3 | Filesys used % increases during storage-fill, decreases after `rm` | Wrong instance selector or no PCP scrape |
 | M4 | CPU/memory/load panels populate **or** are marked N/A with Kafka-only metrics | Silent empty dashboards without investigation |
 
-## 8.5 Logstash (Elasticsearch)
+## Logstash (Elasticsearch)
 
-1. Deploy Logstash (OpenShift Deployment or RHEL service) with the Kafka input from [siem/logstash-kafka.conf](../siem/logstash-kafka.conf).
+1. Deploy Logstash (OpenShift Deployment or RHEL service) with the Kafka input from [siem/logstash-kafka.conf](../../siem/logstash-kafka.conf).
 2. Set `KAFKA_BOOTSTRAP` to `telemetry-kafka-plain-bootstrap.logstream-kafka.svc:9092` in-cluster, or the TLS Route on port 443 with SSL.
 3. Confirm `group_id => "siem-logstash"` is unchanged.
 4. Set `ES_HOSTS` and credentials via environment or keystore.
 5. Restart Logstash and watch pipeline stats.
-6. Inject a synthetic OOM ([scripts/inject-oom-log.sh](../scripts/inject-oom-log.sh)) and search Elasticsearch index `rhel-system-logs-*` for `test_oom` / `Out of memory: Kill process 1234` (tag `oom-test` in the sample filter).
+6. Inject a synthetic OOM ([scripts/inject-oom-log.sh](../../scripts/inject-oom-log.sh)) and search Elasticsearch index `rhel-system-logs-*` for `test_oom` / `Out of memory: Kill process 1234` (tag `oom-test` in the sample filter).
 
 Example in-cluster bootstrap check:
 
@@ -146,10 +146,10 @@ oc exec -n logstream-kafka <logstash-pod> -- \
 
 Do not run two Logstash deployments with the same `group_id` unless they are a single logical consumer (shared group is then expected). Do not share that id with EDA.
 
-## 8.6 Splunk Connect for Kafka
+## Splunk Connect for Kafka
 
 1. Install Splunk Connect for Kafka on a Strimzi `KafkaConnect` cluster in `logstream-kafka` (label `strimzi.io/cluster: telemetry-connect` in the sample).
-2. Create a Splunk HEC token; substitute `splunk.hec.uri` and `splunk.hec.token` in [siem/splunk-connect-kafka.yaml](../siem/splunk-connect-kafka.yaml).
+2. Create a Splunk HEC token; substitute `splunk.hec.uri` and `splunk.hec.token` in [siem/splunk-connect-kafka.yaml](../../siem/splunk-connect-kafka.yaml).
 3. Apply:
 
 ```bash
@@ -171,7 +171,7 @@ oc get kafkaconnector splunk-connect-kafka -n logstream-kafka
 
 The Connect **worker** `group.id` (cluster membership) is not the sink consumer group. Only `consumer.override.group.id=siem-splunk` must remain distinct from `ansible-eda` / `stream-worker` / `siem-logstash`.
 
-## 8.7 Combined operations checklist
+## Combined operations checklist
 
 | ID | Control | Pass | Fail |
 |----|---------|------|------|
@@ -179,13 +179,13 @@ The Connect **worker** `group.id` (cluster membership) is not the sink consumer 
 | C2 | Grafana PCP dashboard imported or Kafka PCP rate panel used | | |
 | C3 | Logstash `siem-logstash` consuming four topics | | |
 | C4 | Splunk `siem-splunk` consuming four topics (if Splunk in scope) | | |
-| C5 | EDA still matches OOM after SIEM enabled ([07 §7.5](07-validation-runbook.md)) | | |
-| C6 | If the optional worker is deployed, it still publishes `enriched-events` after SIEM enabled ([07 §7.6](07-validation-runbook.md)) | | |
+| C5 | EDA still matches OOM after SIEM enabled ([OOM log injection](../validation/runbook.md#synthetic-test-a-oom-log-injection)) | | |
+| C6 | If the optional worker is deployed, it still publishes `enriched-events` after SIEM enabled ([storage-fill test](../validation/runbook.md#optional-synthetic-test-b-storage-fill-predictive-worker)) | | |
 | C7 | Storage-fill image not left behind (`./scripts/storage-fill-test.sh cleanup`) | | |
 
 **Fail on C5/C6** usually means SIEM reused `ansible-eda` or `stream-worker`. Fix group ids and restart SIEM only; do not reset EDA offsets unless instructed by Kafka operations.
 
-## 8.8 Placeholder commands (oc / kcat)
+## Placeholder commands (oc / kcat)
 
 ```bash
 # Connectors and topics
@@ -200,15 +200,15 @@ kcat -b "${BOOTSTRAP}" -t enriched-events -C -o -5 -e -c 5 -G verify-pipeline
 ./scripts/verify-pipeline.sh all
 ```
 
-## 8.9 Related files
+## Related files
 
 | File | Role |
 |------|------|
-| [07-validation-runbook.md](07-validation-runbook.md) | Synthetic tests and pipeline sign-off |
-| [scripts/verify-pipeline.sh](../scripts/verify-pipeline.sh) | oc/kcat placeholders |
-| [scripts/inject-oom-log.sh](../scripts/inject-oom-log.sh) | SIEM search fixture |
-| [scripts/storage-fill-test.sh](../scripts/storage-fill-test.sh) | PCP/Grafana filesys fixture |
-| [grafana/kafka-throughput-lag.json](../grafana/kafka-throughput-lag.json) | Cluster throughput and lag |
-| [grafana/pcp-system-metrics.json](../grafana/pcp-system-metrics.json) | Host PCP views |
-| [siem/logstash-kafka.conf](../siem/logstash-kafka.conf) | Logstash Kafka input |
-| [siem/splunk-connect-kafka.yaml](../siem/splunk-connect-kafka.yaml) | Splunk Connect sink |
+| [../validation/runbook.md](../validation/runbook.md) | Synthetic tests and pipeline sign-off |
+| [scripts/verify-pipeline.sh](../../scripts/verify-pipeline.sh) | oc/kcat placeholders |
+| [scripts/inject-oom-log.sh](../../scripts/inject-oom-log.sh) | SIEM search fixture |
+| [scripts/storage-fill-test.sh](../../scripts/storage-fill-test.sh) | PCP/Grafana filesys fixture |
+| [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json) | Cluster throughput and lag |
+| [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) | Host PCP views |
+| [siem/logstash-kafka.conf](../../siem/logstash-kafka.conf) | Logstash Kafka input |
+| [siem/splunk-connect-kafka.yaml](../../siem/splunk-connect-kafka.yaml) | Splunk Connect sink |

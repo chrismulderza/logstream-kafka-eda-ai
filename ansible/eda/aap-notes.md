@@ -1,6 +1,6 @@
 # AAP helper: project, decision environment, and rulebook activation
 
-Use this when running Event-Driven Ansible on Ansible Automation Platform 2.5 (OCP 4.20 only) or 2.6 (OCP 4.20–4.21). The CLI path is documented in `docs/05-event-driven-ansible.md` with equal weight.
+Use this when running Event-Driven Ansible on Ansible Automation Platform 2.5 (OCP 4.20 only) or 2.6 (OCP 4.20–4.21). The CLI path is documented in `docs/deployment/event-driven-ansible.md` with equal weight.
 
 ## Layout AAP actually scans
 
@@ -63,7 +63,7 @@ On **automation controller** (not EDA):
 
 1. Create a Project pointing at the same git repo.
 2. Inventory: import `ansible/eda/inventory/hosts.example.yml` (group `rhel_telemetry`).
-3. Create one job template per playbook under `ansible/eda/playbooks/` (see `docs/05-event-driven-ansible.md` table A.6). Extra vars: every `allow_*` flag `false`.
+3. Create one job template per playbook under `ansible/eda/playbooks/` (see `docs/deployment/event-driven-ansible.md`, Shared artifacts). Extra vars: every `allow_*` flag `false`.
 4. Optional TTE: job template `proactive-disk-mitigation` only if you enable `aap-rulebook-optional-predictive.yml`.
 5. Disable privilege escalation only if the inventory already sets `ansible_become`. Keep jobs as `run` (not `check`) only after a dry-run review.
 6. Grant the EDA controller token permission to launch those templates.

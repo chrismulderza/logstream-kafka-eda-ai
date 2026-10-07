@@ -1,18 +1,18 @@
-# 1. Architecture
+# Architecture
 
 This chapter defines the topic contracts, listeners, and consumer groups used everywhere else in the book.
 
 RHEL syslog (and optionally Performance Co-Pilot metrics) stream into Apache Kafka on OpenShift, then fan out to Event-Driven Ansible (EDA) and SIEM in parallel. Predictive analytics is an **optional** later chapter: you can automate the ten syslog events without a stream worker or LLM.
 
-## 1.1 Design goals
+## Design goals
 
 - **Existing ArcSight forwarding stays in place.** rsyslog dual-homes: the current SIEM path plus Kafka `omkafka`. This pack never replaces `/etc/rsyslog.conf` or other drop-ins.
 - **KRaft Kafka** (no ZooKeeper). Streams for Apache Kafka 3.0 and later deploy Kafka in KRaft mode only.
 - **One topic contract** so EDA, SIEM, and an optional worker can be added independently.
-- **Predictive analytics is optional**. PCP time-to-exhaustion and LLM classification live in [chapter 6](06-optional-predictive-ai-worker.md).
+- **Predictive analytics is optional**. PCP time-to-exhaustion and LLM classification live in [Predictive worker](../optional/predictive-ai-worker.md).
 - **Remediation is gated**. Playbooks collect diagnostics or notify by default. Firewall bans, restarts, IPMI, disk prune, and LVM extend require explicit extra vars.
 
-## 1.2 Logical topology
+## Logical topology
 
 ```mermaid
 flowchart TB
@@ -48,14 +48,14 @@ flowchart TB
   cli --> pb
 ```
 
-## 1.3 Kafka cluster shape
+## Kafka cluster shape
 
 | Pool | Replicas | Role | Persistent volume |
 | --- | --- | --- | --- |
 | `controller` | 3 | KRaft quorum | 20Gi per node |
 | `broker` | 3 | Data and listeners | 100Gi per node |
 
-Manifests: [openshift/kafka/](../openshift/kafka/). Procedure: [chapter 3](03-kafka-openshift.md).
+Manifests: [openshift/kafka/](../../openshift/kafka). Procedure: [Kafka on OpenShift](../deployment/kafka-openshift.md).
 
 Listeners:
 
@@ -66,7 +66,7 @@ Listeners:
 
 OpenShift Routes listen on 443 even when the Kafka listener inside the cluster is 9094. RHEL `omkafka` and `kcat` must use `host:443` with `security.protocol=ssl` and the cluster CA.
 
-## 1.4 Topic data contracts
+## Topic data contracts
 
 | Topic | Retention | Producers | Consumers | Payload |
 | --- | --- | --- | --- | --- |
@@ -106,9 +106,9 @@ OpenShift Routes listen on 443 even when the Kafka listener inside the cluster i
 }
 ```
 
-The string `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` is the **optional** EDA match key. Do not rename it without changing [ansible/eda/rulebook-optional-predictive.yml](../ansible/eda/rulebook-optional-predictive.yml). The ten syslog rules use [ansible/eda/rulebook.yml](../ansible/eda/rulebook.yml).
+The string `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` is the **optional** EDA match key. Do not rename it without changing [ansible/eda/rulebook-optional-predictive.yml](../../ansible/eda/rulebook-optional-predictive.yml). The ten syslog rules use [ansible/eda/rulebook.yml](../../ansible/eda/rulebook.yml).
 
-## 1.5 Consumer groups
+## Consumer groups
 
 Never share a `group.id` across independent consumers. Kafka delivers each partition message to only one member of a group.
 
@@ -119,7 +119,7 @@ Never share a `group.id` across independent consumers. Kafka delivers each parti
 | Logstash | `siem-logstash` |
 | Splunk Connect for Kafka | `siem-splunk` |
 
-## 1.6 Optional predictive calculation
+## Optional predictive calculation
 
 For a capacity metric (disk or inode pool), time-to-exhaustion is:
 
@@ -127,30 +127,30 @@ For a capacity metric (disk or inode pool), time-to-exhaustion is:
 TTE = (Capacity - Used_current) / (ΔUsed / Δt)
 ```
 
-`ΔUsed / Δt` is the fill rate over the rolling window. If that rate is zero or negative (usage is flat or shrinking), the worker does not emit an exhaustion alert. Implementation: [worker/](../worker/). Skip this section if you are not deploying [chapter 6](06-optional-predictive-ai-worker.md).
+`ΔUsed / Δt` is the fill rate over the rolling window. If that rate is zero or negative (usage is flat or shrinking), the worker does not emit an exhaustion alert. Implementation: [worker/](../../worker). Skip this section if you are not deploying [Predictive worker](../optional/predictive-ai-worker.md).
 
-## 1.7 Where to start
+## Where to start
 
 | Your environment | Start at |
 | --- | --- |
-| First time with this pack | [Introduction](index.md), then this chapter |
-| Greenfield OpenShift + RHEL | [Prerequisites](02-prerequisites.md) then [Kafka on OpenShift](03-kafka-openshift.md) |
-| Existing Streams for Apache Kafka 3.x KRaft cluster | Create the four topics and listeners, then [RHEL telemetry](04-rhel-telemetry.md) |
-| Telemetry already in Kafka | [Event-Driven Ansible](05-event-driven-ansible.md); optional [predictive worker](06-optional-predictive-ai-worker.md) |
-| Proof of pipeline | [Validation](07-validation-runbook.md) |
+| First time with this pack | [Introduction](introduction.md), then this chapter |
+| Greenfield OpenShift + RHEL | [Prerequisites](prerequisites.md) then [Kafka on OpenShift](../deployment/kafka-openshift.md) |
+| Existing Streams for Apache Kafka 3.x KRaft cluster | Create the four topics and listeners, then [RHEL telemetry](../deployment/rhel-telemetry.md) |
+| Telemetry already in Kafka | [Event-Driven Ansible](../deployment/event-driven-ansible.md); optional [predictive worker](../optional/predictive-ai-worker.md) |
+| Proof of pipeline | [Validation](../validation/runbook.md) |
 
-## 1.8 Decision matrices
+## Decision matrices
 
 Inference and EDA are independent choices. Document your selection in your change ticket.
 
-**EDA runtime ([chapter 5](05-event-driven-ansible.md))**
+**EDA runtime ([Event-Driven Ansible](../deployment/event-driven-ansible.md))**
 
 | Option | When to use |
 | --- | --- |
 | AAP 2.5 or 2.6 Event-Driven Ansible | Production activations, RBAC, decision environments. Use 2.6 on OCP 4.21 |
 | `ansible-rulebook` CLI | Lab, jump host, or before AAP is available |
 
-**Inference ([optional chapter 6](06-optional-predictive-ai-worker.md))**
+**Inference ([Predictive worker](../optional/predictive-ai-worker.md))**
 
 | Option | When to use |
 | --- | --- |
@@ -159,8 +159,8 @@ Inference and EDA are independent choices. Document your selection in your chang
 | Red Hat OpenShift AI | You already serve a model with an OpenAI-compatible endpoint |
 | External OpenAI-compatible API | SaaS or remote gateway; requires egress and a secret API key |
 
-Both EDA runtimes consume the same [ansible/eda/](../ansible/eda/) rulebook and playbooks.
+Both EDA runtimes consume the same [ansible/eda/](../../ansible/eda) rulebook and playbooks.
 
 ## Next
 
-Continue with [Prerequisites](02-prerequisites.md).
+Continue with [Prerequisites](prerequisites.md).

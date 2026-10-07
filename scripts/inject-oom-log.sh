@@ -21,7 +21,7 @@ Environment:
   LOGGER_MESSAGE   Message body (default: Out of memory: Kill process 1234)
   PRIORITY         logger -p facility.level (default: kern.err)
 
-Verification: docs/07-validation-runbook.md (OOM injection checklist)
+Verification: docs/validation/runbook.md (OOM injection checklist)
 EOF
 }
 
@@ -39,4 +39,4 @@ echo "Injecting synthetic OOM log: tag=${LOGGER_TAG} priority=${PRIORITY}"
 logger -p "${PRIORITY}" -t "${LOGGER_TAG}" -- "${LOGGER_MESSAGE}"
 echo "OK: logger accepted the message."
 echo "Next: confirm ingestion with scripts/verify-pipeline.sh or kcat on rhel-system-logs."
-echo "See docs/07-validation-runbook.md"
+echo "See docs/validation/runbook.md"

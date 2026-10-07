@@ -23,7 +23,7 @@ mise run dev                 # sources scripts/podman-env.sh
 # Expect: Listening on http://0.0.0.0:8080 and Dev Services for Kafka
 ```
 
-If Podman API fails on corrupt `999-podman-desktop-registries-from-host.conf`, fix inside the machine (see docs §6.2.9).
+If Podman API fails on corrupt `999-podman-desktop-registries-from-host.conf`, fix inside the machine (see docs/optional/predictive-ai-worker.md, Podman troubleshooting and external Kafka).
 
 ## Inject TTE samples
 

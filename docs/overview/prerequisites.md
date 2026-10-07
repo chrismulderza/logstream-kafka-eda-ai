@@ -1,14 +1,14 @@
-# 2. Prerequisites
+# Prerequisites
 
 Complete this chapter before applying Kafka or host playbooks. Commands assume `oc` is logged in as a user who can create namespaces and Operator subscriptions, and that Ansible can SSH to RHEL endpoints as a privileged user.
 
-## 2.1 Version matrix
+## Version matrix
 
 Pin to versions supported in *your* subscription. The table is the floor this pack was written against.
 
 | Layer | Minimum | Notes |
 | --- | --- | --- |
-| OpenShift Container Platform | **4.20** (4.2x) | Target 4.20–4.21. Kubernetes 1.33 on 4.20, 1.34 on 4.21. See [§2.1.1](#211-openshift-42x-compatibility). |
+| OpenShift Container Platform | **4.20** (4.2x) | Target 4.20–4.21. Kubernetes 1.33 on 4.20, 1.34 on 4.21. See [OpenShift 4.2x compatibility](#openshift-42x-compatibility). |
 | Red Hat Streams for Apache Kafka | 3.2 on `stable` | KRaft only. Tested by Red Hat on OCP 4.16–4.21 **except 4.17**. Operator catalog: `amq-streams` |
 | KafkaNodePool + Kafka CRs | Cluster Operator 3.2 | `kafka.strimzi.io/v1`; annotations `strimzi.io/kraft: enabled` and `strimzi.io/node-pools: enabled` |
 | RHEL endpoints (syslog/PCP) | 8.10 or 9.x | Outside the cluster. OCP 4.2x **cluster** workers are RHCOS, not RHEL 8 |
@@ -17,7 +17,7 @@ Pin to versions supported in *your* subscription. The table is the floor this pa
 | Grafana | 9+ | Optional dashboards |
 | Logstash / Splunk Connect for Kafka | Your SIEM standard | Optional parallel consumers |
 
-### 2.1.1 OpenShift 4.2x compatibility
+### OpenShift 4.2x compatibility
 
 This pack targets the **4.20 / 4.21** line (4.2x), not historic 4.12.
 
@@ -67,14 +67,14 @@ python3 -c "import sys; print(sys.version)"
 
 Install MkDocs only if you want the HTML book locally: `pip install -r docs/requirements-docs.txt`.
 
-## 2.2 Cluster capacity
+## Cluster capacity
 
 | Resource | Requested by this pack |
 | --- | --- |
 | Namespace | `logstream-kafka` |
 | Controller PVCs | 3 × 20Gi |
 | Broker PVCs | 3 × 100Gi |
-| Worker | 1 Deployment (CPU/memory in [openshift/worker/](../openshift/worker/)) |
+| Worker | 1 Deployment (CPU/memory in [openshift/worker/](../../openshift/worker)) |
 | StorageClass | Must support `ReadWriteOnce` block or file volumes suitable for Kafka |
 
 Identify a StorageClass before you apply node pools:
@@ -85,7 +85,7 @@ oc get storageclass
 
 Set `storageClassName` in the KafkaNodePool files if the default class is wrong for Kafka (for example, do not use a weakly consistent RWX NFS class).
 
-## 2.3 Network and ports
+## Network and ports
 
 | Path | Port | Direction |
 | --- | --- | --- |
@@ -102,7 +102,7 @@ Firewall on RHEL:
 - Egress to inference if the worker runs on RHEL (this pack runs the worker on OpenShift).
 - Ingress 44321/44322 only if you intentionally expose PCP.
 
-DNS: every RHEL producer must resolve the Kafka bootstrap Route. After chapter 3:
+DNS: every RHEL producer must resolve the Kafka bootstrap Route. After Kafka on OpenShift:
 
 ```bash
 oc get routes -n logstream-kafka
@@ -117,7 +117,7 @@ openssl s_client -connect <bootstrap-route-host>:443 -servername <bootstrap-rout
 | **Passthrough** (this pack) | Kafka TLS end-to-end. Clients trust the **Kafka cluster CA**, not the OpenShift ingress cert. |
 | Reencrypt / edge | Not used here. Edge TLS would terminate Kafka TLS at the router and break Kafka client TLS hostname verification. |
 
-## 2.4 Security baselines
+## Security baselines
 
 ### SELinux on RHEL producers
 
@@ -142,7 +142,7 @@ rsyslog may also need to read the Kafka CA file. Put the CA in a location rsyslo
 
 Existing **ArcSight** forwarding stays. The telemetry role only adds `/etc/rsyslog.d/05-omkafka-additional.conf`. Do not replace `/etc/rsyslog.conf` as part of this project.
 
-Details: [chapter 4](04-rhel-telemetry.md).
+Details: [RHEL telemetry](../deployment/rhel-telemetry.md).
 
 ### OpenShift RBAC and SCC
 
@@ -154,18 +154,18 @@ Details: [chapter 4](04-rhel-telemetry.md).
 
 Do not grant `cluster-admin` to the worker. Do not run the worker as `privileged`.
 
-## 2.5 Credentials and secrets
+## Credentials and secrets
 
 | Secret | Where it lives | Git |
 | --- | --- | --- |
 | Kafka cluster CA | `telemetry-cluster-ca-cert` in `logstream-kafka` | Extract at deploy time; not committed |
-| Inference API key (optional chapter 6) | `predictive-ai-worker` Secret | Use the example Secret; fill on cluster |
+| Inference API key (the predictive worker) | `predictive-ai-worker` Secret | Use the example Secret; fill on cluster |
 | AAP credentials | AAP credential store | Not in Git |
 | Ansible vault | Optional for bootstrap hostnames | `.example` files only in Git |
 
-This repository gitignores `openshift/worker/secret.yaml` if you copy the example to that name. Prefer `oc create secret` as documented in [optional chapter 6](06-optional-predictive-ai-worker.md).
+This repository gitignores `openshift/worker/secret.yaml` if you copy the example to that name. Prefer `oc create secret` as documented in [Predictive worker](../optional/predictive-ai-worker.md).
 
-## 2.6 Pre-flight checklist
+## Pre-flight checklist
 
 Print this list and tick it in the change window.
 
@@ -184,4 +184,4 @@ Print this list and tick it in the change window.
 
 ## Next
 
-Continue with [Kafka on OpenShift](03-kafka-openshift.md).
+Continue with [Kafka on OpenShift](../deployment/kafka-openshift.md).

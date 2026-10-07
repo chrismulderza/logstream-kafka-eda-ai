@@ -54,7 +54,7 @@ change_ticket_id: ""
 package_baseline_file: ""
 slack_webhook_url: ""
 
-# Optional predictive worker (chapter 6)
+# Optional predictive worker (docs/optional/predictive-ai-worker.md)
 allow_podman_prune: false
 allow_lvextend: false
 vg_name: ""

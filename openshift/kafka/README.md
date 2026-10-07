@@ -4,7 +4,7 @@ These manifests deploy **Red Hat Streams for Apache Kafka** (OperatorHub package
 
 Do **not** pin an operator CSV or Kafka broker version in Git. Install the latest CSV on the `stable` channel. Streams for Apache Kafka **3.x is KRaft-only** (no ZooKeeper). Custom resources use `kafka.strimzi.io/v1` (the current API in the 3.2 documentation; `v1beta2` is deprecated).
 
-Full administrator procedure: [docs/03-kafka-openshift.md](../../docs/03-kafka-openshift.md).
+Full administrator procedure: [docs/deployment/kafka-openshift.md](../../docs/deployment/kafka-openshift.md).
 
 ## Apply order
 

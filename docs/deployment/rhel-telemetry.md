@@ -1,8 +1,8 @@
-# 4. RHEL Telemetry
+# RHEL Telemetry
 
 This chapter **adds** rsyslog `omkafka` and PCP → Kafka exporters on RHEL 8/9 with Ansible. It does **not** replace existing syslog forwarding. Hosts that already ship logs to **ArcSight** keep that path; Kafka is a second destination.
 
-Playbooks live in [`ansible/telemetry/`](../ansible/telemetry/). End-to-end synthetic tests are in [chapter 7](07-validation-runbook.md).
+Playbooks live in [`ansible/telemetry/`](../../ansible/telemetry). End-to-end synthetic tests are in [Validation](../validation/runbook.md).
 
 Producers use the OpenShift **Route** for listener `tls-external`. Connect on **TCP 443**. Do not point RHEL hosts at broker port **9094**.
 
@@ -45,18 +45,18 @@ openssl x509 -in ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.p
 
 | Path | Purpose |
 | --- | --- |
-| [`ansible/telemetry/site.yml`](../ansible/telemetry/site.yml) | Entry playbook (imports onboard) |
-| [`ansible/telemetry/playbooks/onboard.yml`](../ansible/telemetry/playbooks/onboard.yml) | Play targeting group `rhel_telemetry` |
-| [`ansible/telemetry/inventory/hosts.example.yml`](../ansible/telemetry/inventory/hosts.example.yml) | Example inventory |
-| [`ansible/telemetry/group_vars/all.yml.example`](../ansible/telemetry/group_vars/all.yml.example) | Bootstrap, `SSL`, topics, PCP interval |
-| [`ansible/telemetry/ansible.cfg`](../ansible/telemetry/ansible.cfg) | `roles_path` and inventory defaults |
-| [`ansible/telemetry/collections/requirements.yml`](../ansible/telemetry/collections/requirements.yml) | `ansible.posix` |
-| [`ansible/telemetry/roles/rhel_telemetry/tasks/`](../ansible/telemetry/roles/rhel_telemetry/tasks/) | Packages, CA, SELinux, firewall, rsyslog, PCP |
-| [`ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2) | Extra `omkafka` destination; does not replace ArcSight |
-| [`ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2) | `pcp2json` piped to `kcat`, `RestartSec=5s` |
-| [`ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) | Hot-process RSS floor for `pmdaproc` |
-| [`ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te`](../ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te) | Targeted SELinux module (connect to port 443) |
-| [`ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.pem.example`](../ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.pem.example) | Placeholder; replace with real PEM |
+| [`ansible/telemetry/site.yml`](../../ansible/telemetry/site.yml) | Entry playbook (imports onboard) |
+| [`ansible/telemetry/playbooks/onboard.yml`](../../ansible/telemetry/playbooks/onboard.yml) | Play targeting group `rhel_telemetry` |
+| [`ansible/telemetry/inventory/hosts.example.yml`](../../ansible/telemetry/inventory/hosts.example.yml) | Example inventory |
+| [`ansible/telemetry/group_vars/all.yml.example`](../../ansible/telemetry/group_vars/all.yml.example) | Bootstrap, `SSL`, topics, PCP interval |
+| [`ansible/telemetry/ansible.cfg`](../../ansible/telemetry/ansible.cfg) | `roles_path` and inventory defaults |
+| [`ansible/telemetry/collections/requirements.yml`](../../ansible/telemetry/collections/requirements.yml) | `ansible.posix` |
+| [`ansible/telemetry/roles/rhel_telemetry/tasks/`](../../ansible/telemetry/roles/rhel_telemetry/tasks) | Packages, CA, SELinux, firewall, rsyslog, PCP |
+| [`ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2) | Extra `omkafka` destination; does not replace ArcSight |
+| [`ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2) | `pcp2json` piped to `kcat`, `RestartSec=5s` |
+| [`ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) | Hot-process RSS floor for `pmdaproc` |
+| [`ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te`](../../ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te) | Targeted SELinux module (connect to port 443) |
+| [`ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.pem.example`](../../ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.pem.example) | Placeholder; replace with real PEM |
 
 The role installs `rsyslog-kafka` (and PCP packages), enables `rsyslog` if it is not already enabled, and adds **one** drop-in. It does not rewrite `/etc/rsyslog.conf` or other files in `/etc/rsyslog.d/`.
 
@@ -72,7 +72,7 @@ Treat Kafka as a **dual-home**, not a cutover.
 
 How the pack enforces that:
 
-1. Writes only [`/etc/rsyslog.d/05-omkafka-additional.conf`](../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2). The `05-` prefix loads **before** typical `10-` / `50-` ArcSight files so a later `stop` after ArcSight forward still leaves Kafka a copy.
+1. Writes only [`/etc/rsyslog.d/05-omkafka-additional.conf`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2). The `05-` prefix loads **before** typical `10-` / `50-` ArcSight files so a later `stop` after ArcSight forward still leaves Kafka a copy.
 2. The Kafka action has **no** `stop` / `& ~`, so later ArcSight rules still see the message.
 3. After apply, the role checksums `/etc/rsyslog.conf` and every pre-existing `rsyslog.d` drop-in and **fails** if any of those files changed.
 4. If an earlier file already discards with `stop` (so Kafka would never run), the role **fails** with `rsyslog_fail_on_early_stop` (default `true`). Keep the ArcSight file; move the discard to the **last** drop-in, or set `rsyslog_kafka_conf` to a name that sorts before that discard file (for example `/etc/rsyslog.d/00-omkafka-additional.conf`).
@@ -93,7 +93,7 @@ Expected: original ArcSight files still present and byte-identical to pre-change
 1. Chapter 3 complete: Kafka Ready, topics present, Route bootstrap on **443**.
 2. Ansible control node: Ansible 2.14+, SSH to hosts with `become`.
 3. Collection: `ansible-galaxy collection install -r ansible/telemetry/collections/requirements.yml`
-4. Hosts subscribed to RHEL BaseOS/AppStream (see [prerequisites](02-prerequisites.md)).
+4. Hosts subscribed to RHEL BaseOS/AppStream (see [prerequisites](../overview/prerequisites.md)).
 5. Cluster CA PEM on the controller (previous section).
 6. DNS from each RHEL host to the Route hostname; egress **TCP 443** to the OpenShift ingress.
 
@@ -211,7 +211,7 @@ Expected: play recap `failed=0` on `rhel_telemetry`. Handlers restart `rsyslog` 
 
 **If it fails on CA missing:** `kafka-cluster-ca.pem` is still the placeholder, or `kafka_ca_src` is wrong. Re-extract `telemetry-cluster-ca-cert`.
 
-**If it fails on `rsyslogd -N1`:** inspect `/etc/rsyslog.d/05-omkafka-additional.conf` (from [`omkafka-additional.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2)). Do not edit ArcSight drop-ins to “make Kafka work” unless a `stop` rule is documented as blocking dual-home.
+**If it fails on `rsyslogd -N1`:** inspect `/etc/rsyslog.d/05-omkafka-additional.conf` (from [`omkafka-additional.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2)). Do not edit ArcSight drop-ins to “make Kafka work” unless a `stop` rule is documented as blocking dual-home.
 
 **If it fails because an existing drop-in checksum changed:** the role refused to clobber ArcSight. Investigate unexpected writes; do not re-run with a destination of `/etc/rsyslog.conf`.
 
@@ -221,7 +221,7 @@ Expected: play recap `failed=0` on `rhel_telemetry`. Handlers restart `rsyslog` 
 
 ### rsyslog / omkafka (additional destination)
 
-[`omkafka-additional.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2) writes `/etc/rsyslog.d/05-omkafka-additional.conf`:
+[`omkafka-additional.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2) writes `/etc/rsyslog.d/05-omkafka-additional.conf`:
 
 - Module `omkafka`, broker `kafka_bootstrap`, topic `rhel-system-logs`.
 - JSON object: `@timestamp` (RFC-3339), `host`, `severity`, `facility`, `syslogtag`, `message`.
@@ -233,7 +233,7 @@ A previous pack filename `/etc/rsyslog.d/10-kafka.conf` is removed if present so
 
 ### PCP / pcp2kafka
 
-[`pcp2kafka.service.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2) installs `/etc/systemd/system/pcp2kafka.service`:
+[`pcp2kafka.service.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2) installs `/etc/systemd/system/pcp2kafka.service`:
 
 - `pcp2json -t <pcp_interval> -4 update` piped to `kcat -P` on topic `rhel-pcp-metrics`. `-4 update` refreshes the instance list when a process crosses the hotproc floor after the unit has started.
 - TLS: `-X security.protocol=ssl -X ssl.ca.location=<kafka_ca_path>`.
@@ -241,7 +241,7 @@ A previous pack filename `/etc/rsyslog.d/10-kafka.conf` is removed if present so
 - `Restart=always`, `RestartSec=5s`.
 - `Requires=pmcd.service`.
 
-[`hotproc.conf.j2`](../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) writes `hotproc_conf_path` (default `/var/lib/pcp/pmdas/proc/hotproc.conf`) and reloads it with `pmstore hotproc.control.reload_config 1`. The `proc` PMDA already ships in `pcp-system-tools`. The predicate `residentsize > 102400` keeps processes at or above about 100 MB. `hotproc.psinfo.rss` and `mem.util.free` are both kilobytes. The unfiltered `proc.psinfo.rss` series is not exported. No process above the floor means an empty hotproc instance domain, which is a successful onboard. If `group_vars/all.yml` sets `pcp_metrics`, include `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` in that list. A copied group_vars file replaces the role default. These series are the input for the process-growth pattern in [chapter 6](06-optional-predictive-ai-worker.md#611-further-preemptive-patterns). The predictive worker does not yet emit that alert.
+[`hotproc.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) writes `hotproc_conf_path` (default `/var/lib/pcp/pmdas/proc/hotproc.conf`) and reloads it with `pmstore hotproc.control.reload_config 1`. The `proc` PMDA already ships in `pcp-system-tools`. The predicate `residentsize > 102400` keeps processes at or above about 100 MB. `hotproc.psinfo.rss` and `mem.util.free` are both kilobytes. The unfiltered `proc.psinfo.rss` series is not exported. No process above the floor means an empty hotproc instance domain, which is a successful onboard. If `group_vars/all.yml` sets `pcp_metrics`, include `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` in that list. A copied group_vars file replaces the role default. These series are the input for the process-growth pattern in [Predictive worker](../optional/predictive-ai-worker.md#further-preemptive-patterns). The predictive worker does not yet emit that alert.
 
 ### firewalld
 
@@ -254,7 +254,7 @@ timeout 5 bash -c 'echo >/dev/tcp/<bootstrap-host>/443' && echo 'tcp 443 reachab
 
 ## SELinux
 
-`syslogd_t` cannot `name_connect` to `http_port_t` (TCP **443**) by default. The role installs the targeted module [`rsyslog_omkafka.te`](../ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te) (`allow syslogd_t http_port_t:tcp_socket name_connect`).
+`syslogd_t` cannot `name_connect` to `http_port_t` (TCP **443**) by default. The role installs the targeted module [`rsyslog_omkafka.te`](../../ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te) (`allow syslogd_t http_port_t:tcp_socket name_connect`).
 
 After a send failure, inspect AVCs:
 
@@ -345,7 +345,7 @@ kcat -C -e -o -1 \
 
 Expected: JSON from `pcp2json` including filesystem, host memory, and CPU names from `pcp_metrics`. `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` appear for processes at or above `hotproc_predicate`. If the topic is empty, `journalctl -u pcp2kafka -n 80` and confirm `kcat` is on `PATH` as installed by the role.
 
-Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for these checks (see [chapter 7](07-validation-runbook.md)).
+Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for these checks (see [Validation](../validation/runbook.md)).
 
 ## Troubleshooting
 
@@ -365,4 +365,4 @@ Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for
 
 ## Next
 
-Continue with [Event-Driven Ansible](05-event-driven-ansible.md) for the ten syslog events. Skip the [optional predictive worker](06-optional-predictive-ai-worker.md) unless you need PCP TTE. Prove the syslog path with `logger` in [Validation](07-validation-runbook.md).
+Continue with [Event-Driven Ansible](event-driven-ansible.md) for the ten syslog events. Skip the [optional predictive worker](../optional/predictive-ai-worker.md) unless you need PCP TTE. Prove the syslog path with `logger` in [Validation](../validation/runbook.md).

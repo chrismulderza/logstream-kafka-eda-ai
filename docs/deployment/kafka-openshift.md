@@ -1,6 +1,6 @@
-# 3. Kafka on OpenShift
+# Kafka on OpenShift
 
-This chapter installs **Red Hat Streams for Apache Kafka** from OperatorHub and deploys a production KRaft cluster named `telemetry` in namespace `logstream-kafka`. Manifests live in [`openshift/kafka/`](../openshift/kafka/). Apply-order notes are also in [`openshift/kafka/README.md`](../openshift/kafka/README.md).
+This chapter installs **Red Hat Streams for Apache Kafka** from OperatorHub and deploys a production KRaft cluster named `telemetry` in namespace `logstream-kafka`. Manifests live in [`openshift/kafka/`](../../openshift/kafka). Apply-order notes are also in [`openshift/kafka/README.md`](../../openshift/kafka/README.md).
 
 Streams for Apache Kafka **3.x is KRaft-only**. ZooKeeper is not supported. Do not pin an operator CSV or Kafka broker version in Git; install the **latest CSV on the `stable` channel** and let that CSV choose the Kafka version it ships.
 
@@ -116,7 +116,7 @@ Expected:
 stable redhat-operators openshift-marketplace
 ```
 
-**If it fails:** `spec.source` not found — list catalog sources with `oc get catalogsource -n openshift-marketplace`. Disconnected clusters often use a custom CatalogSource name; update [`openshift/kafka/subscription.yaml`](../openshift/kafka/subscription.yaml) to match, keep `name: amq-streams` and `channel: stable`.
+**If it fails:** `spec.source` not found — list catalog sources with `oc get catalogsource -n openshift-marketplace`. Disconnected clusters often use a custom CatalogSource name; update [`openshift/kafka/subscription.yaml`](../../openshift/kafka/subscription.yaml) to match, keep `name: amq-streams` and `channel: stable`.
 
 ### Step 4 — Approve the InstallPlan and wait for the CSV
 
@@ -183,8 +183,8 @@ PVCs use `type: persistent-claim`. Class is **not** set so OpenShift uses the de
 
 To pin a class, uncomment and set `class` on the volume in:
 
-- [`openshift/kafka/kafka-nodepool-controller.yaml`](../openshift/kafka/kafka-nodepool-controller.yaml)
-- [`openshift/kafka/kafka-nodepool-broker.yaml`](../openshift/kafka/kafka-nodepool-broker.yaml)
+- [`openshift/kafka/kafka-nodepool-controller.yaml`](../../openshift/kafka/kafka-nodepool-controller.yaml)
+- [`openshift/kafka/kafka-nodepool-broker.yaml`](../../openshift/kafka/kafka-nodepool-broker.yaml)
 
 Example:
 
@@ -218,7 +218,7 @@ kafkanodepool.kafka.strimzi.io/broker created
 kafka.kafka.strimzi.io/telemetry created
 ```
 
-[`openshift/kafka/kafka.yaml`](../openshift/kafka/kafka.yaml) sets:
+[`openshift/kafka/kafka.yaml`](../../openshift/kafka/kafka.yaml) sets:
 
 - `strimzi.io/kraft: enabled`
 - `strimzi.io/node-pools: enabled`
@@ -265,7 +265,7 @@ Use this path when you cannot apply the Subscription YAML, or to cross-check Pat
 2. Name: `logstream-kafka`.
 3. Create.
 
-Alternatively apply [`openshift/kafka/namespace.yaml`](../openshift/kafka/namespace.yaml) as in Path A.
+Alternatively apply [`openshift/kafka/namespace.yaml`](../../openshift/kafka/namespace.yaml) as in Path A.
 
 ### Step 2 — Install from OperatorHub
 
@@ -292,17 +292,17 @@ The console creates an `OperatorGroup` targeting `logstream-kafka` and a `Subscr
 
 1. **Installed Operators → Streams for Apache Kafka**.
 2. Tab **Kafka Node Pool → Create KafkaNodePool**.
-3. **YAML view**. Replace the sample with [`openshift/kafka/kafka-nodepool-controller.yaml`](../openshift/kafka/kafka-nodepool-controller.yaml).
+3. **YAML view**. Replace the sample with [`openshift/kafka/kafka-nodepool-controller.yaml`](../../openshift/kafka/kafka-nodepool-controller.yaml).
 4. Create.
 
 ### Step 5 — Create KafkaNodePool `broker`
 
-Repeat with [`openshift/kafka/kafka-nodepool-broker.yaml`](../openshift/kafka/kafka-nodepool-broker.yaml).
+Repeat with [`openshift/kafka/kafka-nodepool-broker.yaml`](../../openshift/kafka/kafka-nodepool-broker.yaml).
 
 ### Step 6 — Create Kafka `telemetry`
 
 1. Tab **Kafka → Create Kafka**.
-2. **YAML view**. Paste [`openshift/kafka/kafka.yaml`](../openshift/kafka/kafka.yaml).
+2. **YAML view**. Paste [`openshift/kafka/kafka.yaml`](../../openshift/kafka/kafka.yaml).
 3. Create.
 4. Wait until the Kafka resource **Status** is **Ready** (Conditions `Ready=True`).
 
@@ -310,10 +310,10 @@ Repeat with [`openshift/kafka/kafka-nodepool-broker.yaml`](../openshift/kafka/ka
 
 1. Tab **Kafka Topic → Create KafkaTopic**.
 2. For each file, paste YAML:
-   - [`openshift/kafka/kafka-topic-rhel-system-logs.yaml`](../openshift/kafka/kafka-topic-rhel-system-logs.yaml)
-   - [`openshift/kafka/kafka-topic-rhel-pcp-metrics.yaml`](../openshift/kafka/kafka-topic-rhel-pcp-metrics.yaml)
-   - [`openshift/kafka/kafka-topic-raw-metrics.yaml`](../openshift/kafka/kafka-topic-raw-metrics.yaml)
-   - [`openshift/kafka/kafka-topic-enriched-events.yaml`](../openshift/kafka/kafka-topic-enriched-events.yaml)
+   - [`openshift/kafka/kafka-topic-rhel-system-logs.yaml`](../../openshift/kafka/kafka-topic-rhel-system-logs.yaml)
+   - [`openshift/kafka/kafka-topic-rhel-pcp-metrics.yaml`](../../openshift/kafka/kafka-topic-rhel-pcp-metrics.yaml)
+   - [`openshift/kafka/kafka-topic-raw-metrics.yaml`](../../openshift/kafka/kafka-topic-raw-metrics.yaml)
+   - [`openshift/kafka/kafka-topic-enriched-events.yaml`](../../openshift/kafka/kafka-topic-enriched-events.yaml)
 
 ---
 
@@ -516,7 +516,7 @@ oc get events -n logstream-kafka --field-selector type=Warning
 | PVC `Pending`, no default StorageClass | Set `class` on both node pools or mark a default SC |
 | `FailedScheduling` / insufficient CPU/memory | Free worker capacity; 6 Kafka pods plus operator |
 | `CreateContainerConfigError` | Operator too old for `kafka.strimzi.io/v1` — wait until the 3.x CSV is Succeeded |
-| Missing `kraftMetadata: shared` on controller volume | Cluster Operator rejects controller-only pools; re-apply [`kafka-nodepool-controller.yaml`](../openshift/kafka/kafka-nodepool-controller.yaml) |
+| Missing `kraftMetadata: shared` on controller volume | Cluster Operator rejects controller-only pools; re-apply [`kafka-nodepool-controller.yaml`](../../openshift/kafka/kafka-nodepool-controller.yaml) |
 | Applied Kafka without node pools | Apply both `KafkaNodePool` CRs labeled `strimzi.io/cluster: telemetry` |
 
 ### Topics NotReady
@@ -528,7 +528,7 @@ oc get po -n logstream-kafka -l strimzi.io/name=telemetry-entity-operator
 
 | Symptom | Action |
 | --- | --- |
-| No Entity Operator pod | `spec.entityOperator.topicOperator` missing — re-apply [`kafka.yaml`](../openshift/kafka/kafka.yaml) |
+| No Entity Operator pod | `spec.entityOperator.topicOperator` missing — re-apply [`kafka.yaml`](../../openshift/kafka/kafka.yaml) |
 | `Resource not ready` / cluster not Ready | Wait for Kafka `Ready=True`, then re-apply topics |
 | Wrong `strimzi.io/cluster` label | Must be `telemetry` |
 
@@ -555,7 +555,7 @@ oc get kafka telemetry -n logstream-kafka -o yaml | sed -n '/status:/,$p'
 
 ## Kustomize reference
 
-[`openshift/kafka/kustomization.yaml`](../openshift/kafka/kustomization.yaml) lists every resource and sets `namespace: logstream-kafka`.
+[`openshift/kafka/kustomization.yaml`](../../openshift/kafka/kustomization.yaml) lists every resource and sets `namespace: logstream-kafka`.
 
 ```bash
 oc apply -k openshift/kafka
@@ -569,16 +569,16 @@ Use only when the operator is already installed, or accept that topics will be `
 
 | Path | Role |
 | --- | --- |
-| [`openshift/kafka/namespace.yaml`](../openshift/kafka/namespace.yaml) | Namespace `logstream-kafka` |
-| [`openshift/kafka/operator-group.yaml`](../openshift/kafka/operator-group.yaml) | Namespace-scoped OperatorGroup |
-| [`openshift/kafka/subscription.yaml`](../openshift/kafka/subscription.yaml) | `amq-streams` / `stable` / marketplace |
-| [`openshift/kafka/kafka-nodepool-controller.yaml`](../openshift/kafka/kafka-nodepool-controller.yaml) | Controller pool |
-| [`openshift/kafka/kafka-nodepool-broker.yaml`](../openshift/kafka/kafka-nodepool-broker.yaml) | Broker pool |
-| [`openshift/kafka/kafka.yaml`](../openshift/kafka/kafka.yaml) | Kafka `telemetry` |
-| [`openshift/kafka/kafka-topic-*.yaml`](../openshift/kafka/) | Topic Operator CRs |
-| [`openshift/kafka/kustomization.yaml`](../openshift/kafka/kustomization.yaml) | Resource list |
-| [`openshift/kafka/README.md`](../openshift/kafka/README.md) | Short apply-order card |
+| [`openshift/kafka/namespace.yaml`](../../openshift/kafka/namespace.yaml) | Namespace `logstream-kafka` |
+| [`openshift/kafka/operator-group.yaml`](../../openshift/kafka/operator-group.yaml) | Namespace-scoped OperatorGroup |
+| [`openshift/kafka/subscription.yaml`](../../openshift/kafka/subscription.yaml) | `amq-streams` / `stable` / marketplace |
+| [`openshift/kafka/kafka-nodepool-controller.yaml`](../../openshift/kafka/kafka-nodepool-controller.yaml) | Controller pool |
+| [`openshift/kafka/kafka-nodepool-broker.yaml`](../../openshift/kafka/kafka-nodepool-broker.yaml) | Broker pool |
+| [`openshift/kafka/kafka.yaml`](../../openshift/kafka/kafka.yaml) | Kafka `telemetry` |
+| [`openshift/kafka/kafka-topic-*.yaml`](../../openshift/kafka) | Topic Operator CRs |
+| [`openshift/kafka/kustomization.yaml`](../../openshift/kafka/kustomization.yaml) | Resource list |
+| [`openshift/kafka/README.md`](../../openshift/kafka/README.md) | Short apply-order card |
 
 ## Next
 
-Continue with [RHEL telemetry](04-rhel-telemetry.md) to dual-home syslog onto Kafka while keeping ArcSight.
+Continue with [RHEL telemetry](rhel-telemetry.md) to dual-home syslog onto Kafka while keeping ArcSight.

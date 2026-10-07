@@ -63,12 +63,16 @@ validation:
     unrecognized_links: ignore
     not_found: info
 nav:
-  - Introduction: index.md
-  - 1. Architecture: 01-architecture.md
-  - 2. Prerequisites: 02-prerequisites.md
-  - 3. Kafka on OpenShift: 03-kafka-openshift.md
-  - 4. RHEL Telemetry: 04-rhel-telemetry.md
-  - 5. Event-Driven Ansible: 05-event-driven-ansible.md
-  - 6. Optional Predictive Worker: 06-optional-predictive-ai-worker.md
-  - 7. Validation: 07-validation-runbook.md
-  - 8. SIEM and Dashboards: 08-siem-dashboards.md
+  - Overview:
+      - Introduction: overview/introduction.md
+      - Architecture: overview/architecture.md
+      - Prerequisites: overview/prerequisites.md
+  - Deployment:
+      - Kafka on OpenShift: deployment/kafka-openshift.md
+      - RHEL telemetry: deployment/rhel-telemetry.md
+      - Event-Driven Ansible: deployment/event-driven-ansible.md
+  - Validation:
+      - Runbook: validation/runbook.md
+  - Optional:
+      - Predictive worker: optional/predictive-ai-worker.md
+      - SIEM and dashboards: optional/siem-dashboards.md
