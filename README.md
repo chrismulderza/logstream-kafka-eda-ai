@@ -1,6 +1,6 @@
 # Logstream Kafka EDA
 
-Ship RHEL system logs into Kafka on OpenShift, keep your existing ArcSight path, and automate responses with Event-Driven Ansible — without guessing at remediations.
+Ship RHEL system logs into Kafka on OpenShift, keep your existing syslog forwarding, and automate responses with Event-Driven Ansible — without guessing at remediations.
 
 This repository is an **administrator pack**: a step-by-step deployment guide plus the OpenShift manifests, Ansible roles, rulebooks, playbooks, and validation scripts you apply to an estate you already run. It does **not** create an OpenShift cluster for you.
 
@@ -16,22 +16,28 @@ The published book opens with [Overview](docs/overview/introduction.md) (problem
 
 ## What this pack provides
 
-1. **Dual-home rsyslog** — add Kafka (`omkafka`) while ArcSight `omfwd` / `omrelp` stays untouched.
+1. **Dual-home rsyslog** — add Kafka (`omkafka`) while the current `omfwd` or `omrelp` destination stays in place.
 2. **KRaft Kafka on OpenShift** — Streams for Apache Kafka topics and listeners for producers and consumers.
 3. **Event-Driven Ansible on ten high-value syslog patterns** — OOM, SSH brute force, sudo failures, SELinux AVCs, systemd failures, disk I/O errors, account changes, kernel panic / MCE, link down, and package installs.
 4. **Fail-closed remediations** — diagnose or notify by default; destructive actions stay off until you opt in.
 5. **Optional predictive disk alerts** — PCP time-to-exhaustion (and optional LLM). Skip if you only need log-driven EDA.
 
-```text
-RHEL hosts
-  ├── rsyslog ──► ArcSight          (existing, unchanged)
-  ├── rsyslog ──► Kafka             (rhel-system-logs)
-  └── PCP ──────► Kafka             (rhel-pcp-metrics, optional)
-
-Kafka
-  ├── Event-Driven Ansible          (group: ansible-eda)
-  ├── SIEM (Logstash / Splunk)      (groups: siem-logstash, siem-splunk)
-  └── Optional stream worker        (group: stream-worker → enriched-events)
+```mermaid
+flowchart TB
+  subgraph hosts [RHEL hosts]
+    rsyslog[rsyslog]
+    pcp[PCP]
+  end
+  existing[Existing syslog destination]
+  kafka[Kafka]
+  eda[Event-Driven Ansible]
+  worker[Optional stream worker]
+  rsyslog -->|"omfwd or omrelp"| existing
+  rsyslog -->|"omkafka rhel-system-logs"| kafka
+  pcp -->|"rhel-pcp-metrics"| kafka
+  kafka -->|ansible-eda| eda
+  kafka -.->|stream-worker| worker
+  worker -.->|enriched-events| kafka
 ```
 
 ## Repository layout
@@ -45,7 +51,7 @@ Kafka
 | [`extensions/eda/rulebooks/`](extensions/eda/rulebooks/) | AAP-scanned rulebook copies |
 | [`worker/`](worker/) + [`openshift/worker/`](openshift/worker/) | Optional Quarkus predictive worker (`mise` toolchain, Dev Services, OpenShift BuildConfig) |
 | [`scripts/`](scripts/) | Synthetic tests and pipeline checks |
-| [`siem/`](siem/) + [`grafana/`](grafana/) | Parallel SIEM consumers and dashboards |
+| [`grafana/`](grafana/) | Grafana dashboards for Kafka lag and PCP via pmproxy |
 
 ## Default names
 
@@ -57,7 +63,6 @@ Kafka
 | External listener | Route TLS `tls-external` (clients use port **443**) |
 | Topics | `rhel-system-logs`, `rhel-pcp-metrics`, `raw-metrics`, `enriched-events` |
 | EDA group | `ansible-eda` |
-| SIEM groups | `siem-logstash`, `siem-splunk` |
 | Worker group | `stream-worker` (only if the optional predictive worker is deployed) |
 
 ## Note on `plan.md`

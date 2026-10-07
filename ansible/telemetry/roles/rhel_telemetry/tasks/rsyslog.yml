@@ -1,6 +1,6 @@
 ---
 # Kafka is an *additional* rsyslog destination. Never replace /etc/rsyslog.conf
-# or existing ArcSight / SIEM drop-ins. See docs/deployment/rhel-telemetry.md.
+# or existing syslog forwarding drop-ins. See docs/deployment/rhel-telemetry.md.
 
 - name: Refuse to write Kafka config over /etc/rsyslog.conf
   ansible.builtin.assert:
@@ -9,7 +9,7 @@
       - "'/etc/rsyslog.d/' in rsyslog_kafka_conf"
     fail_msg: >-
       rsyslog_kafka_conf must be a drop-in under /etc/rsyslog.d/ so existing
-      ArcSight (or other SIEM) configuration in /etc/rsyslog.conf is preserved.
+      syslog forwarding in /etc/rsyslog.conf is preserved.
 
 - name: Ensure rsyslog.d exists
   ansible.builtin.file:
@@ -26,18 +26,18 @@
     file_type: file
   register: rsyslog_dropins_before
 
-- name: Identify ArcSight / existing SIEM drop-ins
+- name: Identify existing forwarding drop-ins
   ansible.builtin.set_fact:
-    # Product name is ArcSight. Also match misspelled drop-in filenames (arcsite).
-    rsyslog_arcsight_dropins: "{{ rsyslog_dropins_before.files | map(attribute='path') | select('regex', '(?i)(arcsight|arcsite|cef|smartconnector)') | list }}"
+    # Filename safety check only. Hosts are not assumed to use one product.
+    rsyslog_forwarder_dropins: "{{ rsyslog_dropins_before.files | map(attribute='path') | select('regex', '(?i)(arcsight|arcsite|cef|smartconnector)') | list }}"
 
-- name: Show preserved ArcSight / SIEM drop-ins
+- name: Show preserved forwarding drop-ins
   ansible.builtin.debug:
     msg: >-
       Existing rsyslog.d files will be left unchanged:
       {{ rsyslog_dropins_before.files | map(attribute='path') | reject('equalto', rsyslog_kafka_conf) | list | join(', ') | default('(none)', true) }}.
-      Detected ArcSight-style names:
-      {{ rsyslog_arcsight_dropins | join(', ') | default('(none named ArcSight)', true) }}.
+      Detected common forwarder filenames:
+      {{ rsyslog_forwarder_dropins | join(', ') | default('(none)', true) }}.
       This role only writes {{ rsyslog_kafka_conf }} (no stop/discard).
 
 - name: Snapshot checksums of rsyslog files this role does not own
@@ -92,15 +92,15 @@
     msg: >-
       Found `stop` or `& ~` in {{ rsyslog_early_stop.stdout | trim }} which
       loads before {{ rsyslog_kafka_conf }}. That discard would prevent omkafka
-      from seeing messages. Keep the ArcSight forwarding file. Remove or move
-      the discard so it runs *after* both ArcSight and Kafka, or set
+      from seeing messages. Keep the existing forwarding file. Remove or move
+      the discard so it runs *after* both that forwarder and Kafka, or set
       rsyslog_kafka_conf to a name that sorts before the discard file
       (for example /etc/rsyslog.d/00-omkafka-additional.conf).
   when:
     - rsyslog_fail_on_early_stop | bool
     - rsyslog_early_stop.rc | default(0) == 2
 
-- name: Install additional omkafka drop-in (does not replace ArcSight)
+- name: Install additional omkafka drop-in (does not replace existing forwarding)
   ansible.builtin.template:
     src: omkafka-additional.conf.j2
     dest: "{{ rsyslog_kafka_conf }}"
@@ -143,7 +143,7 @@
   register: rsyslog_snap_after
   changed_when: false
 
-- name: Fail if existing rsyslog or ArcSight configuration changed
+- name: Fail if existing rsyslog configuration changed
   ansible.builtin.fail:
     msg: >-
       Checksums of /etc/rsyslog.conf or pre-existing /etc/rsyslog.d drop-ins

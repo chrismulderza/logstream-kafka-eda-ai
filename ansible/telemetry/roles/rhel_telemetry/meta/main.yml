@@ -2,7 +2,7 @@
 galaxy_info:
   role_name: rhel_telemetry
   author: platform-engineering
-  description: Add rsyslog omkafka and PCP to Kafka on RHEL 8/9 without replacing ArcSight or other existing syslog forwarding
+  description: Add rsyslog omkafka and PCP to Kafka on RHEL 8/9 without replacing existing syslog forwarding
   license: Apache-2.0
   min_ansible_version: "2.14"
   platforms:

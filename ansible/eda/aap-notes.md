@@ -80,7 +80,7 @@ Names must match `job_template_*` keys in `vars/extra_vars.example.yml`.
 6. Variables: paste YAML from `vars/extra_vars.example.yml`, substituting real Kafka host/port. Keep every `allow_*` flag **false** until a change window.
 7. Enable the activation.
 
-Confirm the activation log shows the syslog Kafka source connecting with consumer group `ansible-eda`. If the group already has SIEM or worker members, stop and fix group IDs before enabling rules.
+Confirm the activation log shows the syslog Kafka source connecting with consumer group `ansible-eda`. If the group already has other members, stop and fix group IDs before enabling rules.
 
 ## Dual / optional predictive rulebook on AAP
 

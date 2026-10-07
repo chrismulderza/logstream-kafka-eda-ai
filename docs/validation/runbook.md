@@ -2,7 +2,7 @@
 
 Prove the event-driven pipeline on OpenShift namespace `logstream-kafka`, Kafka cluster `telemetry`, and attached RHEL hosts. Assume Kafka, RHEL telemetry, and Event-Driven Ansible are already deployed. The [storage-fill test](#optional-synthetic-test-b-storage-fill-predictive-worker) applies only if you deployed the [predictive worker](../optional/predictive-ai-worker.md).
 
-Companion SIEM and Grafana work is in [SIEM and dashboards](../optional/siem-dashboards.md).
+Grafana import is in [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md).
 
 ## Scope and naming
 
@@ -15,8 +15,7 @@ Companion SIEM and Grafana work is in [SIEM and dashboards](../optional/siem-das
 | Topics | `rhel-system-logs`, `rhel-pcp-metrics`, `raw-metrics`, `enriched-events` |
 | EDA consumer group | `ansible-eda` |
 | Stream worker group | `stream-worker` |
-| SIEM groups (must differ) | `siem-logstash`, `siem-splunk` |
-| Verification consumer group | `verify-pipeline` (scripts only; do not reuse EDA/worker/SIEM groups) |
+| Verification consumer group | `verify-pipeline` (scripts only; do not reuse the EDA or worker groups) |
 
 Scripts in this repository:
 
@@ -36,7 +35,7 @@ Dashboards used during validation:
 
 1. Run synthetic tests on a lab host first.
 2. The storage-fill test **allocates 5 GiB** on the log filesystem (`fallocate -l 5G /var/log/test_fill.img`). On a small `/var` this can cause a **real** outage. Always run cleanup (`rm` of the image) in the same change window.
-3. `kcat` in [scripts/verify-pipeline.sh](../../scripts/verify-pipeline.sh) uses group `verify-pipeline`. Never point `kcat -G` at `ansible-eda`, `stream-worker`, `siem-logstash`, or `siem-splunk`.
+3. `kcat` in [scripts/verify-pipeline.sh](../../scripts/verify-pipeline.sh) uses group `verify-pipeline`. Never point `kcat -G` at `ansible-eda` or `stream-worker`.
 4. Do not leave `test_fill.img` in place on production.
 
 ## Prerequisites checklist
@@ -48,7 +47,7 @@ Dashboards used during validation:
 | P3 | `oc get kafkatopic -n logstream-kafka` lists all four topics | Names match the table in [Scope and naming](#scope-and-naming) | Topic missing or wrong retention |
 | P4 | Broker pods in `logstream-kafka` are Running | 3 brokers (and 3 controllers if using node pools) Running | CrashLoop, pending PVCs |
 | P5 | RHEL host: `rsyslog` and `pcp2kafka.service` (or equivalent) active | `systemctl is-active` is `active` | Unit failed; no Kafka produce |
-| P5b | Existing ArcSight rsyslog drop-ins still present and unchanged | `ls /etc/rsyslog.d` plus connector still receiving | Kafka onboarding overwrote SIEM forwarding |
+| P5b | Existing syslog forwarding drop-ins still present and unchanged | `ls /etc/rsyslog.d` plus the current destination still receiving | Kafka onboarding overwrote existing forwarding |
 | P6 | Host can reach bootstrap (`9092` in-cluster or Route **443**) | `kcat -b <bootstrap> -L` lists brokers | Timeout, TLS mismatch, NetworkPolicy |
 | P7 | `logger` and `fallocate` installed on the test host | Commands exist | Missing util-linux / util-linux-core |
 
@@ -58,8 +57,8 @@ Print required group names:
 ./scripts/verify-pipeline.sh groups
 ```
 
-**Pass:** output lists `ansible-eda`, `stream-worker`, `siem-logstash`, `siem-splunk`, and `verify-pipeline`.  
-**Fail:** script not executable or you plan to reuse `ansible-eda` for SIEM.
+**Pass:** output lists `ansible-eda`, `stream-worker`, and `verify-pipeline`.  
+**Fail:** script not executable or you plan to reuse `ansible-eda` for another consumer.
 
 Make scripts executable once:
 
@@ -107,11 +106,11 @@ kcat -b "${BOOTSTRAP}" -t rhel-system-logs -L
 | B1 | Kafka CR Ready; node pools present | Operator not reconciling |
 | B2 | Topics `rhel-system-logs`, `rhel-pcp-metrics`, `raw-metrics`, `enriched-events` exist | Missing KafkaTopic |
 | B3 | `kcat -L` shows brokers and the four topics | Empty metadata, auth error |
-| B4 | Grafana Kafka dashboard (after import per [SIEM and dashboards](../optional/siem-dashboards.md)) shows bytes/messages in | All panels `No data` and brokers idle |
+| B4 | Grafana Kafka dashboard (after import per [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md)) shows bytes/messages in | All panels `No data` and brokers idle |
 
 ## Synthetic test A — OOM log injection
 
-**Purpose:** prove `omkafka` JSON on `rhel-system-logs` **and** that existing ArcSight forwarding still receives the same line. EDA group `ansible-eda` matches an OOM rule; SIEM on Kafka uses **their own** groups.
+**Purpose:** prove `omkafka` JSON on `rhel-system-logs` **and** that existing syslog forwarding still receives the same line. EDA group `ansible-eda` matches an OOM rule.
 
 On the **RHEL endpoint** that ships syslog to Kafka:
 
@@ -154,11 +153,10 @@ Expect a match on OOM and a run of `remediate_oom.yml` (or a logged skip if the 
 |------|------|------|
 | O1 | `logger` exits 0 | `logger` missing or permission denied |
 | O2 | Line appears in local journal/messages with tag `test_oom` | rsyslog dropped the line |
-| O2b | Same line still reaches ArcSight (connector or Logger) | Kafka dual-home broke SIEM forwarding |
-| O3 | Same payload on `rhel-system-logs` within the SLA (typically seconds) | Topic silent: omkafka, TLS, SELinux, or Route; ArcSight `stop` before Kafka |
+| O2b | Same line still reaches the existing syslog destination | Kafka dual-home broke existing forwarding |
+| O3 | Same payload on `rhel-system-logs` within the SLA (typically seconds) | Topic silent: omkafka, TLS, SELinux, or Route; an earlier `stop` before Kafka |
 | O4 | Consumer group `ansible-eda` lag does not grow unbounded | EDA not subscribed or stuck |
 | O5 | Rule match / diagnostic playbook evidence in EDA logs | Rulebook pattern mismatch |
-| O6 | SIEM (if enabled) shows the event via `siem-logstash` / `siem-splunk` only | SIEM using `ansible-eda` (incorrect) |
 
 Cleanup: none required (syslog is append-only). Repeat injection if Kafka was down.
 
@@ -219,39 +217,37 @@ If create fails because the file exists, run `cleanup` then `create`.
 
 ## Consumer group and lag verification
 
-Lag belongs on [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json) (Prometheus/Strimzi kafka-exporter). Groups that **must** appear as four distinct series:
+Lag belongs on [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json) (Prometheus/Strimzi kafka-exporter). Groups that appear as separate series:
 
 - `ansible-eda`
-- `stream-worker`
-- `siem-logstash` (only after Logstash is deployed — [siem/logstash-kafka.conf](../../siem/logstash-kafka.conf))
-- `siem-splunk` (only after Splunk Connect — [siem/splunk-connect-kafka.yaml](../../siem/splunk-connect-kafka.yaml))
+- `stream-worker` (only if the optional worker is deployed)
 
 | Step | Pass | Fail |
 |------|------|------|
-| L1 | EDA and worker groups exist after traffic | No members — process not consuming |
-| L2 | SIEM groups are **not** named `ansible-eda` or `stream-worker` | Shared group (split-brain / stolen offsets) |
+| L1 | EDA and, if deployed, the worker group exist after traffic | No members — process not consuming |
+| L2 | No other consumer uses `ansible-eda` or `stream-worker` | Shared group (split-brain / stolen offsets) |
 | L3 | Lag returns toward zero after each synthetic test | Stuck consumer; check TLS and max.poll.interval |
 | L4 | `verify-pipeline` group is unused except this runbook | Operators using `-G ansible-eda` in kcat |
 
 Kafka Exporter / Strimzi metrics placeholders (Prometheus):
 
 ```text
-sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~"ansible-eda|stream-worker|siem-logstash|siem-splunk"})
+sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~"ansible-eda|stream-worker"})
 ```
 
 ## End-to-end pass/fail (sign-off)
 
-Record date, operator, cluster, and host. All of **Must-pass** must be Pass before production SIEM cutover ([SIEM and dashboards](../optional/siem-dashboards.md)).
+Record date, operator, cluster, and host. All of **Must-pass** must be Pass before you open remediation gates. Grafana import is optional ([Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md)).
 
 | ID | Control | Pass | Fail |
 |----|---------|------|------|
 | E1 | Kafka `telemetry` Ready in `logstream-kafka` | | |
 | E2 | Four topics present and receiving | | |
 | E3 | OOM injection visible on `rhel-system-logs` | | |
-| E3b | Same OOM line still received by ArcSight | | |
+| E3b | Same OOM line still received by the existing syslog destination | | |
 | E4 | EDA matched OOM using group `ansible-eda` | | |
 | E5 | Storage fill created, worker enriched, then **cleaned up** | | |
-| E6 | No SIEM consumer shares EDA/worker groups | | |
+| E6 | No other consumer uses `ansible-eda` or `stream-worker` | | |
 | E7 | Grafana Kafka lag dashboard imported and populated (or documented N/A if metrics not scraped yet) | | |
 
 **Rollback:** `./scripts/storage-fill-test.sh cleanup`; stop extra `kcat -G` processes; do not reset production consumer groups.
@@ -264,11 +260,9 @@ Record date, operator, cluster, and host. All of **Must-pass** must be Pass befo
 | [scripts/storage-fill-test.sh](../../scripts/storage-fill-test.sh) | Disk synthetic + cleanup |
 | [scripts/verify-pipeline.sh](../../scripts/verify-pipeline.sh) | oc/kcat placeholders |
 | [grafana/kafka-throughput-lag.json](../../grafana/kafka-throughput-lag.json) | Throughput and lag |
-| [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) | Host PCP / filesys |
-| [siem/logstash-kafka.conf](../../siem/logstash-kafka.conf) | Logstash group `siem-logstash` |
-| [siem/splunk-connect-kafka.yaml](../../siem/splunk-connect-kafka.yaml) | Splunk group `siem-splunk` |
-| [SIEM and dashboards](../optional/siem-dashboards.md) | SIEM and dashboard import |
+| [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) | Host PCP / filesys via pmproxy |
+| [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md) | pmcd, optional pmproxy, Grafana import |
 
 ## Next
 
-Continue with [SIEM and dashboards](../optional/siem-dashboards.md) for parallel Logstash/Splunk consumers and Grafana.
+Continue with [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md) when you want Grafana views of Kafka lag and host PCP.

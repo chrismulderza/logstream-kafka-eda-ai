@@ -1,6 +1,6 @@
 # Event-Driven Ansible
 
-This chapter is the **core automation path**: RHEL syslog already dual-homed to ArcSight and Kafka (`rhel-system-logs`) is matched by Event-Driven Ansible (EDA). Each of the ten catalog events below has a rule, a playbook, and a SIEM use. Predictive analytics is **not** required; skip the [optional predictive worker](../optional/predictive-ai-worker.md) unless you want PCP time-to-exhaustion.
+This chapter is the **core automation path**: RHEL syslog already dual-homed to an existing syslog destination and Kafka (`rhel-system-logs`) is matched by Event-Driven Ansible (EDA). Each of the ten catalog events below has a rule, a playbook, and a reason it matters to a security team. Predictive analytics is **not** required; skip the [optional predictive worker](../optional/predictive-ai-worker.md) unless you want PCP time-to-exhaustion.
 
 Two runtimes are first-class: **Ansible Automation Platform (AAP) 2.5/2.6 rulebook activations** and the **`ansible-rulebook` CLI**. On OpenShift **4.21**, use AAP **2.6** (2.5 Operators stop at OCP 4.20). Artifacts live in `ansible/eda/`.
 
@@ -13,22 +13,20 @@ Two runtimes are first-class: **Ansible Automation Platform (AAP) 2.5/2.6 rulebo
 
 The `ansible.eda.kafka` source plugin takes **`host` and `port`**, not `bootstrap_servers`. JSON values are **`event.body`** (and flattened `event.message`).
 
-**Consumer group `ansible-eda` is reserved for this rulebook.** Do not reuse it for `stream-worker`, `siem-logstash`, or `siem-splunk`.
+**Consumer group `ansible-eda` is reserved for this rulebook.** Do not reuse it for `stream-worker`.
 
 In-cluster bootstrap: `telemetry-kafka-plain-bootstrap.logstream-kafka.svc` port `9092`.
 
 ```mermaid
 flowchart LR
   rsyslog[rsyslog dual-home]
+  existing[Existing syslog destination]
   kafka[Kafka rhel-system-logs]
   eda[EDA ansible-eda]
   pb[Gated playbooks]
-  siem[SIEM parallel groups]
-  arcsight[ArcSight unchanged]
-  rsyslog --> arcsight
+  rsyslog -->|"omfwd or omrelp"| existing
   rsyslog --> kafka
   kafka --> eda
-  kafka --> siem
   eda --> pb
 ```
 
@@ -303,7 +301,7 @@ logger -t NetworkManager -- "device (eth0): state is now DISCONNECTED"
 logger -t dnf -- "Installed: tree-1.8.0-1.el9.x86_64"
 ```
 
-Confirm ArcSight still receives the same lines. Confirm Kafka `rhel-system-logs` with group `verify-pipeline` (never `ansible-eda`).
+Confirm the existing syslog destination still receives the same lines. Confirm Kafka `rhel-system-logs` with group `verify-pipeline` (never `ansible-eda`).
 
 ## Operational checklist
 

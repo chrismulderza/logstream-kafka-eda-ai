@@ -2,7 +2,7 @@
 # Placeholder-driven pipeline verification for logstream-kafka.
 # Uses oc and kcat; replace environment variables for your cluster.
 # Does not consume as ansible-eda or stream-worker. Optional kcat consumer
-# uses group verify-pipeline so EDA/SIEM offsets are not stolen.
+# uses group verify-pipeline so those offsets are not stolen.
 set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-logstream-kafka}"
@@ -15,8 +15,6 @@ VERIFY_GROUP="${VERIFY_GROUP:-verify-pipeline}"
 TOPICS=(rhel-system-logs rhel-pcp-metrics raw-metrics enriched-events)
 EDA_GROUP="ansible-eda"
 WORKER_GROUP="stream-worker"
-SIEM_LOGSTASH_GROUP="siem-logstash"
-SIEM_SPLUNK_GROUP="siem-splunk"
 
 usage() {
   cat <<'EOF'
@@ -36,7 +34,7 @@ Environment:
   OC_BIN          default oc
   VERIFY_GROUP    kcat consumer group default verify-pipeline
 
-See docs/validation/runbook.md and docs/optional/siem-dashboards.md
+See docs/validation/runbook.md and docs/optional/metrics-dashboard-pcp.md
 EOF
 }
 
@@ -52,8 +50,6 @@ cmd_groups() {
 Required consumer groups (do not overlap):
   EDA:           ${EDA_GROUP}
   stream-worker: ${WORKER_GROUP}
-  SIEM Logstash: ${SIEM_LOGSTASH_GROUP}
-  SIEM Splunk:   ${SIEM_SPLUNK_GROUP}
   This script:   ${VERIFY_GROUP}
 
 Topics:

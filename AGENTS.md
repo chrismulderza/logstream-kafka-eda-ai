@@ -2,7 +2,7 @@
 
 ## Product context
 
-Optional Quarkus predictive worker + OpenShift Kafka/EDA book. Core pipeline is dual-home rsyslog (ArcSight untouched) → Kafka → EDA. Spell **ArcSight** correctly (not Arc Sight / arcsight in prose).
+Optional Quarkus predictive worker + OpenShift Kafka/EDA book. Core pipeline is dual-home rsyslog (existing syslog forwarding stays) → Kafka → EDA.
 
 ## Worker development (Quarkus)
 

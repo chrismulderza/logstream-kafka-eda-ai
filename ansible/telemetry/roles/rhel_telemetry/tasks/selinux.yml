@@ -1,6 +1,6 @@
 ---
 # rsyslog_t cannot name_connect to http_port_t (TCP 443) by default.
-# This module is additive: it does not remove ArcSight/syslog port 514 allows.
+# This module is additive: it does not remove existing syslog port 514 allows.
 # Do NOT set logging_syslogd_can_send_mail — that boolean only relates to
 # port 25/smtp and is not a Kafka/omkafka fix.
 # Prefer the targeted module in files/rsyslog_omkafka.te.

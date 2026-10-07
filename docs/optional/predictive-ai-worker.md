@@ -19,7 +19,7 @@ There is **no single default inference backend**. Choose a row in the decision m
 | Bootstrap | `telemetry-kafka-plain-bootstrap.logstream-kafka.svc:9092` | In-cluster **plaintext** |
 | Consume | `rhel-pcp-metrics` and/or `raw-metrics` | `KAFKA_CONSUME_TOPICS` (default: both) |
 | Produce | `enriched-events` | JSON keyed by host |
-| Consumer group | `stream-worker` | Do not reuse this group for EDA or SIEM |
+| Consumer group | `stream-worker` | Do not reuse this group for EDA |
 | Runtime | Quarkus 3 / OpenJDK 21 | SmallRye Reactive Messaging + REST Client |
 
 **TTE formula** (rolling window; `dUsed/dt` is a least-squares slope):
@@ -720,4 +720,4 @@ oc -n logstream-kafka delete -k openshift/worker/
 
 ## Next
 
-Prove the worker path with the storage-fill test in [Validation](../validation/runbook.md), then wire [SIEM and dashboards](siem-dashboards.md) if required.
+Prove the worker path with the storage-fill test in [Validation](../validation/runbook.md), then graph host metrics in [Metrics Dashboard using PCP](metrics-dashboard-pcp.md) if required.

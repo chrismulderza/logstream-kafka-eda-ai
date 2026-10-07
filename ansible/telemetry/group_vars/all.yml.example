@@ -22,8 +22,8 @@ kafka_ca_path: /etc/pki/ca-trust/source/anchors/kafka-cluster-ca.pem
 kafka_ca_src: kafka-cluster-ca.pem
 
 # Additional omkafka drop-in only. Never /etc/rsyslog.conf.
-# Existing ArcSight / SIEM forwarding in rsyslog.d must stay in place.
-# 05- sorts before typical ArcSight 10-/50- files that may `stop` after omfwd.
+# Existing syslog forwarding in rsyslog.d must stay in place.
+# 05- sorts before typical 10-/50- forwarding files that may `stop` after omfwd.
 rsyslog_kafka_conf: /etc/rsyslog.d/05-omkafka-additional.conf
 rsyslog_fail_on_early_stop: true
 

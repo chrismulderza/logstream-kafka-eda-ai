@@ -8,7 +8,7 @@ kafka_ca_src: kafka-cluster-ca.pem
 kafka_ca_install_trust_anchor: true
 
 # Additional omkafka drop-in only. Never /etc/rsyslog.conf.
-# 05- sorts before typical ArcSight 10-/50- files that may `stop` after omfwd.
+# 05- sorts before typical 10-/50- forwarding files that may `stop` after omfwd.
 rsyslog_kafka_conf: /etc/rsyslog.d/05-omkafka-additional.conf
 rsyslog_kafka_certs_dir: /etc/rsyslog.d/certs
 rsyslog_legacy_kafka_confs:

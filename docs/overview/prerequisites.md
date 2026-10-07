@@ -15,7 +15,7 @@ Pin to versions supported in *your* subscription. The table is the floor this pa
 | Ansible Automation Platform | 2.6 on OCP 4.21; 2.5 or 2.6 on 4.20 | Operator AAP 2.5 supports OCP through **4.20** only. CLI `ansible-rulebook` has no OCP pin |
 | ansible-rulebook + `ansible.eda` | Current supported collection | CLI path; Python 3.9+ |
 | Grafana | 9+ | Optional dashboards |
-| Logstash / Splunk Connect for Kafka | Your SIEM standard | Optional parallel consumers |
+| PCP `pmproxy` | RHEL 8.10 or 9 `pcp` | Optional. One proxy can front many hosts. Not started by the telemetry role |
 
 ### OpenShift 4.2x compatibility
 
@@ -89,7 +89,7 @@ Set `storageClassName` in the KafkaNodePool files if the default class is wrong 
 
 | Path | Port | Direction |
 | --- | --- | --- |
-| Kafka internal `plain` | 9092/TCP | Worker, in-cluster EDA, in-cluster SIEM → brokers |
+| Kafka internal `plain` | 9092/TCP | Worker and in-cluster EDA → brokers |
 | Kafka external Route | **443/TCP** (listener 9094 in the CR) | RHEL hosts and jump hosts → OpenShift ingress |
 | `pmcd` | 44321/TCP | Optional remote PCP clients → RHEL |
 | `pmproxy` | 44322/TCP | Optional HTTP/metrics proxy → RHEL |
@@ -140,7 +140,7 @@ sudo grep rsyslog /var/log/audit/audit.log | tail
 
 rsyslog may also need to read the Kafka CA file. Put the CA in a location rsyslog can read (the telemetry role uses a certs directory under `/etc/rsyslog.d/` or the trust anchor path) and restore context with `restorecon`.
 
-Existing **ArcSight** forwarding stays. The telemetry role only adds `/etc/rsyslog.d/05-omkafka-additional.conf`. Do not replace `/etc/rsyslog.conf` as part of this project.
+Existing syslog forwarding stays. The telemetry role only adds `/etc/rsyslog.d/05-omkafka-additional.conf`. Do not replace `/etc/rsyslog.conf` as part of this project.
 
 Details: [RHEL telemetry](../deployment/rhel-telemetry.md).
 
@@ -175,11 +175,11 @@ Print this list and tick it in the change window.
 - [ ] StorageClass for Kafka is chosen; 3×20Gi + 3×100Gi is available
 - [ ] RHEL hosts are subscribed (BaseOS + AppStream)
 - [ ] Ansible control node can SSH to hosts with become
-- [ ] Inventory of existing rsyslog ArcSight drop-ins is recorded (files will not be replaced)
-- [ ] Firewall/DNS will allow RHEL → OpenShift ingress 443 **and** existing ArcSight connector ports still work
+- [ ] Inventory of existing rsyslog forwarding drop-ins is recorded (files will not be replaced)
+- [ ] Firewall/DNS will allow RHEL → OpenShift ingress 443 **and** the current syslog destination ports still work
 - [ ] You have chosen EDA: AAP 2.6 (or 2.5 on OCP 4.20 only) or `ansible-rulebook`
 - [ ] Predictive worker / inference is in scope **or** explicitly skipped
-- [ ] SIEM owners know they must use `siem-logstash` / `siem-splunk` groups
+- [ ] Grafana / pmproxy is in scope **or** explicitly skipped
 - [ ] Destructive remediation flags stay `false` until validation passes
 
 ## Next

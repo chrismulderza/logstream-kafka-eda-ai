@@ -1,6 +1,6 @@
 # RHEL Telemetry
 
-This chapter **adds** rsyslog `omkafka` and PCP → Kafka exporters on RHEL 8/9 with Ansible. It does **not** replace existing syslog forwarding. Hosts that already ship logs to **ArcSight** keep that path; Kafka is a second destination.
+This chapter **adds** rsyslog `omkafka` and PCP → Kafka exporters on RHEL 8/9 with Ansible. It does **not** replace existing syslog forwarding. Hosts that already ship logs keep that path; Kafka is a second destination.
 
 Playbooks live in [`ansible/telemetry/`](../../ansible/telemetry). End-to-end synthetic tests are in [Validation](../validation/runbook.md).
 
@@ -52,7 +52,7 @@ openssl x509 -in ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.p
 | [`ansible/telemetry/ansible.cfg`](../../ansible/telemetry/ansible.cfg) | `roles_path` and inventory defaults |
 | [`ansible/telemetry/collections/requirements.yml`](../../ansible/telemetry/collections/requirements.yml) | `ansible.posix` |
 | [`ansible/telemetry/roles/rhel_telemetry/tasks/`](../../ansible/telemetry/roles/rhel_telemetry/tasks) | Packages, CA, SELinux, firewall, rsyslog, PCP |
-| [`ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2) | Extra `omkafka` destination; does not replace ArcSight |
+| [`ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2) | Extra `omkafka` destination; does not replace existing forwarding |
 | [`ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/pcp2kafka.service.j2) | `pcp2json` piped to `kcat`, `RestartSec=5s` |
 | [`ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) | Hot-process RSS floor for `pmdaproc` |
 | [`ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te`](../../ansible/telemetry/roles/rhel_telemetry/files/rsyslog_omkafka.te) | Targeted SELinux module (connect to port 443) |
@@ -60,32 +60,32 @@ openssl x509 -in ansible/telemetry/roles/rhel_telemetry/files/kafka-cluster-ca.p
 
 The role installs `rsyslog-kafka` (and PCP packages), enables `rsyslog` if it is not already enabled, and adds **one** drop-in. It does not rewrite `/etc/rsyslog.conf` or other files in `/etc/rsyslog.d/`.
 
-## Preserve ArcSight forwarding
+## Preserve existing syslog forwarding
 
-Treat Kafka as a **dual-home**, not a cutover.
+Treat Kafka as a **dual-home**, not a cutover. For example, an existing ArcSight SmartConnector or Logger destination that already uses `omfwd` or `omrelp` stays in place; this role only adds Kafka.
 
 | Keep | Do not |
 | --- | --- |
-| Existing ArcSight SmartConnector / Logger `omfwd` or `omrelp` drop-ins | Replace `/etc/rsyslog.conf` |
-| CEF/legacy forwarding host, port, and filters | Add `stop` or `& ~` in the Kafka file |
-| Local files such as `/var/log/messages` | Delete or overwrite files named `*arcsight*`, `*cef*` |
+| Existing `omfwd` or `omrelp` drop-ins | Replace `/etc/rsyslog.conf` |
+| Current forwarding host, port, and filters | Add `stop` or `& ~` in the Kafka file |
+| Local files such as `/var/log/messages` | Delete or overwrite existing forwarding drop-ins |
 
 How the pack enforces that:
 
-1. Writes only [`/etc/rsyslog.d/05-omkafka-additional.conf`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2). The `05-` prefix loads **before** typical `10-` / `50-` ArcSight files so a later `stop` after ArcSight forward still leaves Kafka a copy.
-2. The Kafka action has **no** `stop` / `& ~`, so later ArcSight rules still see the message.
+1. Writes only [`/etc/rsyslog.d/05-omkafka-additional.conf`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2). The `05-` prefix loads **before** typical `10-` / `50-` forwarding files so a later `stop` after the existing forward still leaves Kafka a copy.
+2. The Kafka action has **no** `stop` / `& ~`, so later forwarding rules still see the message.
 3. After apply, the role checksums `/etc/rsyslog.conf` and every pre-existing `rsyslog.d` drop-in and **fails** if any of those files changed.
-4. If an earlier file already discards with `stop` (so Kafka would never run), the role **fails** with `rsyslog_fail_on_early_stop` (default `true`). Keep the ArcSight file; move the discard to the **last** drop-in, or set `rsyslog_kafka_conf` to a name that sorts before that discard file (for example `/etc/rsyslog.d/00-omkafka-additional.conf`).
+4. If an earlier file already discards with `stop` (so Kafka would never run), the role **fails** with `rsyslog_fail_on_early_stop` (default `true`). Keep the existing forwarding file; move the discard to the **last** drop-in, or set `rsyslog_kafka_conf` to a name that sorts before that discard file (for example `/etc/rsyslog.d/00-omkafka-additional.conf`).
 
-Verify ArcSight is still configured after onboarding:
+Verify existing forwarding is still configured after onboarding:
 
 ```bash
 ls -l /etc/rsyslog.d
-grep -nEi 'arcsight|omfwd|omrelp|@@|@' /etc/rsyslog.conf /etc/rsyslog.d/*.conf
+grep -nEi 'omfwd|omrelp|@@|@' /etc/rsyslog.conf /etc/rsyslog.d/*.conf
 rsyslogd -N1
 ```
 
-Expected: original ArcSight files still present and byte-identical to pre-change; Kafka drop-in exists; `rsyslogd -N1` is clean. Confirm the connector or Logger still receives events (ArcSight console or SmartConnector status) in the same window you confirm Kafka with `kcat`.
+Expected: original forwarding files still present and byte-identical to pre-change; Kafka drop-in exists; `rsyslogd -N1` is clean. Confirm the current destination still receives events in the same window you confirm Kafka with `kcat`.
 
 
 ## Prerequisites
@@ -211,11 +211,11 @@ Expected: play recap `failed=0` on `rhel_telemetry`. Handlers restart `rsyslog` 
 
 **If it fails on CA missing:** `kafka-cluster-ca.pem` is still the placeholder, or `kafka_ca_src` is wrong. Re-extract `telemetry-cluster-ca-cert`.
 
-**If it fails on `rsyslogd -N1`:** inspect `/etc/rsyslog.d/05-omkafka-additional.conf` (from [`omkafka-additional.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2)). Do not edit ArcSight drop-ins to “make Kafka work” unless a `stop` rule is documented as blocking dual-home.
+**If it fails on `rsyslogd -N1`:** inspect `/etc/rsyslog.d/05-omkafka-additional.conf` (from [`omkafka-additional.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/omkafka-additional.conf.j2)). Do not edit existing forwarding drop-ins to “make Kafka work” unless a `stop` rule is documented as blocking dual-home.
 
-**If it fails because an existing drop-in checksum changed:** the role refused to clobber ArcSight. Investigate unexpected writes; do not re-run with a destination of `/etc/rsyslog.conf`.
+**If it fails because an existing drop-in checksum changed:** the role refused to clobber existing forwarding. Investigate unexpected writes; do not re-run with a destination of `/etc/rsyslog.conf`.
 
-**If it fails on early `stop`:** an existing discard loads before the Kafka file. See [Preserve ArcSight](#preserve-arcsight-forwarding).
+**If it fails on early `stop`:** an existing discard loads before the Kafka file. See [Preserve existing syslog forwarding](#preserve-existing-syslog-forwarding).
 
 ## What the role configures
 
@@ -226,8 +226,8 @@ Expected: play recap `failed=0` on `rhel_telemetry`. Handlers restart `rsyslog` 
 - Module `omkafka`, broker `kafka_bootstrap`, topic `rhel-system-logs`.
 - JSON object: `@timestamp` (RFC-3339), `host`, `severity`, `facility`, `syslogtag`, `message`.
 - `confParam`: `security.protocol=ssl`, `ssl.ca.location=<kafka_ca_path>`.
-- Disk-assisted queue so a Kafka outage does not stall ArcSight or local logging.
-- **No** `stop` / `& ~`. ArcSight `omfwd`/`omrelp` rules continue to run.
+- Disk-assisted queue so a Kafka outage does not stall existing forwarding or local logging.
+- **No** `stop` / `& ~`. Existing `omfwd` / `omrelp` rules continue to run.
 
 A previous pack filename `/etc/rsyslog.d/10-kafka.conf` is removed if present so `omkafka` is not loaded twice.
 
@@ -277,7 +277,7 @@ sudo ausearch -m avc -ts recent --raw | audit2allow -M rsyslog_omkafka
 sudo semodule -i rsyslog_omkafka.pp
 ```
 
-The `rsyslog_omkafka` module only **adds** `name_connect` to TCP 443 for Kafka. It does not change allow rules for ArcSight SmartConnector ports (typically 514/tcp or 6514/tcp). Do not disable existing syslog SELinux booleans that ArcSight already needs.
+The `rsyslog_omkafka` module only **adds** `name_connect` to TCP 443 for Kafka. It does not change allow rules for existing syslog destination ports (often 514/tcp or 6514/tcp). Do not disable syslog SELinux booleans the current forwarder already needs.
 
 ## Step 4 — Verify on the host
 
@@ -289,7 +289,7 @@ test -f /etc/pki/ca-trust/source/anchors/kafka-cluster-ca.pem
 journalctl -u rsyslog -u pcp2kafka -n 50 --no-pager
 ```
 
-Expected: all three units `active`; `rsyslogd -N1` reports no errors; CA PEM present; ArcSight drop-ins still listed under `/etc/rsyslog.d/`.
+Expected: all three units `active`; `rsyslogd -N1` reports no errors; CA PEM present; existing forwarding drop-ins still listed under `/etc/rsyslog.d/`.
 
 ```bash
 test -f /etc/rsyslog.d/05-omkafka-additional.conf
@@ -302,7 +302,7 @@ Inject a log:
 logger -t telemetry-onboard "rhel telemetry probe $(hostname -f) $(date -Iseconds)"
 ```
 
-Wait a few seconds. `journalctl -u rsyslog` must not show repeating `omkafka` SSL or `name_connect` denials. Local `/var/log/messages` (or journal) and the ArcSight connector should still show the same line. Kafka is extra, not a replacement.
+Wait a few seconds. `journalctl -u rsyslog` must not show repeating `omkafka` SSL or `name_connect` denials. Local `/var/log/messages` (or journal) and the existing syslog destination should still show the same line. Kafka is extra, not a replacement.
 
 ## Step 5 — Verify with kcat consume
 
@@ -345,7 +345,7 @@ kcat -C -e -o -1 \
 
 Expected: JSON from `pcp2json` including filesystem, host memory, and CPU names from `pcp_metrics`. `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` appear for processes at or above `hotproc_predicate`. If the topic is empty, `journalctl -u pcp2kafka -n 80` and confirm `kcat` is on `PATH` as installed by the role.
 
-Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for these checks (see [Validation](../validation/runbook.md)).
+Do **not** use consumer group `ansible-eda` or `stream-worker` for these checks (see [Validation](../validation/runbook.md)).
 
 ## Troubleshooting
 
@@ -355,8 +355,8 @@ Do **not** use consumer group `ansible-eda`, `stream-worker`, or SIEM groups for
 | `SSL handshake failed` / unknown CA | Ingress CA or missing cluster CA | Re-extract `telemetry-cluster-ca-cert`; `ssl.ca.location` → PEM on the host |
 | Hostname verification failed | Bootstrap host ≠ advertised Route | Use `status.listeners[name=tls-external].bootstrapServers` exactly |
 | `omkafka` silent / AVCs on `name_connect` | SELinux blocked 443 | `ausearch`; keep `rsyslog_omkafka`; do not enable `logging_syslogd_can_send_mail` |
-| ArcSight stopped receiving after onboard | Kafka drop-in used `stop`, or `/etc/rsyslog.conf` was replaced | Restore ArcSight files from backup; this role must only add `05-omkafka-additional.conf` |
-| Kafka empty but ArcSight works | Early `stop`/`& ~` before the `05-` drop-in | See [Preserve ArcSight](#preserve-arcsight-forwarding) |
+| Existing syslog destination stopped receiving after onboard | Kafka drop-in used `stop`, or `/etc/rsyslog.conf` was replaced | Restore forwarding files from backup; this role must only add `05-omkafka-additional.conf` |
+| Kafka empty but existing forwarding works | Early `stop`/`& ~` before the `05-` drop-in | See [Preserve existing syslog forwarding](#preserve-existing-syslog-forwarding) |
 | `pcp2kafka` crash loop | `kcat` missing | EPEL/pip fallback or internal `kcat` package |
 | Empty `rhel-pcp-metrics` | `pmcd` down or metric names | `systemctl status pmcd`; `pminfo filesys.used mem.physmem` |
 | `hotproc.psinfo.rss` missing | Predicate not loaded | `pminfo -f hotproc.control.config`; rerun onboard so `hotproc.conf` is installed and `pmstore` reloads it |

@@ -581,4 +581,4 @@ Use only when the operator is already installed, or accept that topics will be `
 
 ## Next
 
-Continue with [RHEL telemetry](rhel-telemetry.md) to dual-home syslog onto Kafka while keeping ArcSight.
+Continue with [RHEL telemetry](rhel-telemetry.md) to dual-home syslog onto Kafka while keeping the existing syslog destination.

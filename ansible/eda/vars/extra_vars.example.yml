@@ -14,8 +14,8 @@ kafka_offset: latest
 # kafka_certfile: /etc/eda/certs/client.crt
 # kafka_keyfile: /etc/eda/certs/client.key
 
-# Consumer group MUST stay unique versus SIEM (siem-logstash, siem-splunk)
-# and the optional stream worker (stream-worker).
+# Consumer group MUST stay unique versus the optional stream worker
+# (stream-worker). Do not share ansible-eda with any other consumer.
 kafka_group_id: ansible-eda
 
 # AAP job templates (used only by aap-rulebook.yml).

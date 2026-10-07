@@ -27,7 +27,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "kafka_consumergroup_lag{namespace=\"logstream-kafka\",consumergroup=~\"stream-worker|ansible-eda|siem-logstash|siem-splunk\"}",
+          "expr": "kafka_consumergroup_lag{namespace=\"logstream-kafka\",consumergroup=~\"stream-worker|ansible-eda\"}",
           "legendFormat": "{{consumergroup}} {{topic}}",
           "refId": "A"
         }

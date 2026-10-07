@@ -4,12 +4,12 @@
   "id": null,
   "panels": [
     {
-      "title": "PCP filesys used (from Kafka JSON — use Infinity or Logstash-derived Prometheus)",
+      "title": "PCP filesys used (Prometheus names from pmproxy /metrics)",
       "type": "text",
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
       "options": {
         "mode": "markdown",
-        "content": "PCP samples land on topic `rhel-pcp-metrics`. Expose them via Logstash/OpenTelemetry to Prometheus, or Grafana Infinity against a query API. The timeseries below expect metrics named `pcp_filesys_used_bytes` and `pcp_filesys_capacity_bytes` with labels `host` and `mount`."
+        "content": "Host panels expect Prometheus names from pmproxy /metrics, for example `pcp_filesys_used_bytes` and `pcp_filesys_capacity_bytes` with labels `host` and `mount`. pmproxy is not required on every host: one proxy can front many pmcd instances. Kafka topic `rhel-pcp-metrics` is the event-stream copy and is not this dashboard's datasource."
       }
     },
     {

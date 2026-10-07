@@ -1,18 +1,18 @@
 {#
   ADDITIONAL rsyslog destination for Kafka. This file must not replace
-  /etc/rsyslog.conf or existing ArcSight / SIEM drop-ins.
+  /etc/rsyslog.conf or existing syslog forwarding drop-ins.
 
   Do not use `stop` or `& ~` here. Messages continue to later rules, including
-  ArcSight SmartConnector / Logger forwarding (omfwd, omrelp, CEF).
+  the current omfwd or omrelp destination.
 
   Lexical order: this drop-in is named to load early (05-) so omkafka runs
-  *before* typical ArcSight files that discard with `stop` after forwarding.
+  *before* typical forwarding files that discard with `stop` after forwarding.
 
   kafka_bootstrap is the OpenShift Route for listener tls-external, port 443.
 #}
 
-# Dual-home: Kafka copy only. Existing ArcSight configuration stays
-# in its original files and must keep working independently of this action.
+# Dual-home: Kafka copy only. Existing forwarding stays in its original
+# files and must keep working independently of this action.
 module(load="omkafka")
 
 template(name="json_kafka" type="list") {
@@ -38,7 +38,7 @@ template(name="json_kafka" type="list") {
 }
 
 # RainerScript action with no stop: the message remains in the ruleset for
-# ArcSight omfwd/omrelp and local files (/var/log/messages, etc.).
+# existing omfwd/omrelp forwarding and local files (/var/log/messages, etc.).
 action(
     type="omkafka"
     name="omkafka_rhel_system_logs"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Inject a synthetic OOM syslog event into the host pipeline.
-# Expected path: rsyslog continues to ArcSight *and* omkafka ->
-# topic rhel-system-logs -> EDA group ansible-eda
-# and SIEM groups siem-logstash / siem-splunk (never reuse EDA or stream-worker groups).
+# Expected path: rsyslog continues to the existing syslog destination *and*
+# omkafka -> topic rhel-system-logs -> EDA group ansible-eda
+# (never reuse ansible-eda or stream-worker for another consumer).
 set -euo pipefail
 
 LOGGER_TAG="${LOGGER_TAG:-test_oom}"
@@ -14,7 +14,7 @@ usage() {
 Usage: inject-oom-log.sh
 
 Injects a synthetic kernel-style OOM line via logger(1) so rsyslog copies it
-to Kafka (omkafka) without replacing existing ArcSight forwarding.
+to Kafka (omkafka) without replacing existing syslog forwarding.
 
 Environment:
   LOGGER_TAG       Syslog tag (default: test_oom)

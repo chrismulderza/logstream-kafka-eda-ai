@@ -77,4 +77,4 @@ nav:
       - Runbook: validation/runbook.md
   - Optional:
       - Predictive worker: optional/predictive-ai-worker.md
-      - SIEM and dashboards: optional/siem-dashboards.md
+      - Metrics Dashboard using PCP: optional/metrics-dashboard-pcp.md

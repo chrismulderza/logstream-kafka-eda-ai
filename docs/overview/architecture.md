@@ -2,13 +2,13 @@
 
 This chapter defines the topic contracts, listeners, and consumer groups used everywhere else in the book.
 
-RHEL syslog (and optionally Performance Co-Pilot metrics) stream into Apache Kafka on OpenShift, then fan out to Event-Driven Ansible (EDA) and SIEM in parallel. Predictive analytics is an **optional** later chapter: you can automate the ten syslog events without a stream worker or LLM.
+RHEL syslog (and optionally Performance Co-Pilot metrics) stream into Apache Kafka on OpenShift, then to Event-Driven Ansible (EDA). Predictive analytics is an **optional** later chapter: you can automate the ten syslog events without a stream worker or LLM. Grafana reads host metrics from pmproxy, not from a Kafka consumer group.
 
 ## Design goals
 
-- **Existing ArcSight forwarding stays in place.** rsyslog dual-homes: the current SIEM path plus Kafka `omkafka`. This pack never replaces `/etc/rsyslog.conf` or other drop-ins.
+- **Existing syslog forwarding stays in place.** rsyslog dual-homes: the current `omfwd` or `omrelp` destination plus Kafka `omkafka`. This pack never replaces `/etc/rsyslog.conf` or other drop-ins.
 - **KRaft Kafka** (no ZooKeeper). Streams for Apache Kafka 3.0 and later deploy Kafka in KRaft mode only.
-- **One topic contract** so EDA, SIEM, and an optional worker can be added independently.
+- **One topic contract** so EDA and an optional worker can be added independently.
 - **Predictive analytics is optional**. PCP time-to-exhaustion and LLM classification live in [Predictive worker](../optional/predictive-ai-worker.md).
 - **Remediation is gated**. Playbooks collect diagnostics or notify by default. Firewall bans, restarts, IPMI, disk prune, and LVM extend require explicit extra vars.
 
@@ -19,7 +19,7 @@ flowchart TB
   subgraph edge [RHEL endpoints]
     rsyslog[rsyslog]
     pcp[pcp2json plus kcat]
-    arcsight[ArcSight]
+    existing[Existing syslog destination]
   end
   subgraph ocp [OpenShift namespace logstream-kafka]
     kafka[Kafka cluster telemetry]
@@ -34,16 +34,14 @@ flowchart TB
     aap[AAP EDA activations]
     cli[ansible-rulebook CLI]
   end
-  siem[SIEM and Grafana]
   rsyslog -->|omkafka rhel-system-logs| kafka
-  rsyslog -->|existing omfwd or omrelp| arcsight
+  rsyslog -->|existing omfwd or omrelp| existing
   pcp -->|optional rhel-pcp-metrics| kafka
   kafka -->|optional| worker
   worker --> inference
   worker -->|enriched-events| kafka
   kafka --> aap
   kafka --> cli
-  kafka --> siem
   aap --> pb[Gated playbooks]
   cli --> pb
 ```
@@ -70,10 +68,10 @@ OpenShift Routes listen on 443 even when the Kafka listener inside the cluster i
 
 | Topic | Retention | Producers | Consumers | Payload |
 | --- | --- | --- | --- | --- |
-| `rhel-system-logs` | 7 days | rsyslog `omkafka` (in addition to ArcSight) | EDA, SIEM | RFC-3339 JSON syslog |
-| `rhel-pcp-metrics` | 3 days | `pcp2json` via `kcat` | Optional worker, Grafana/SIEM | PCP JSON samples |
+| `rhel-system-logs` | 7 days | rsyslog `omkafka` (in addition to existing syslog forwarding) | EDA | RFC-3339 JSON syslog |
+| `rhel-pcp-metrics` | 3 days | `pcp2json` via `kcat` | Optional worker | PCP JSON samples |
 | `raw-metrics` | 1 day | Optional extra producers | Optional worker | JSON metrics |
-| `enriched-events` | 3 days | Optional stream worker | Optional EDA rulebook, SIEM | Predictive alerts and optional LLM fields |
+| `enriched-events` | 3 days | Optional stream worker | Optional EDA rulebook | Predictive alerts and optional LLM fields |
 
 ### Syslog JSON (`rhel-system-logs`)
 
@@ -116,8 +114,8 @@ Never share a `group.id` across independent consumers. Kafka delivers each parti
 | --- | --- |
 | Optional stream worker | `stream-worker` |
 | Event-Driven Ansible | `ansible-eda` |
-| Logstash | `siem-logstash` |
-| Splunk Connect for Kafka | `siem-splunk` |
+
+Grafana is a pmproxy scrape, described in [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md). It is not a Kafka consumer group.
 
 ## Optional predictive calculation
 
