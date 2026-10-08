@@ -243,6 +243,35 @@ A previous pack filename `/etc/rsyslog.d/10-kafka.conf` is removed if present so
 
 [`hotproc.conf.j2`](../../ansible/telemetry/roles/rhel_telemetry/templates/hotproc.conf.j2) writes `hotproc_conf_path` (default `/var/lib/pcp/pmdas/proc/hotproc.conf`) and reloads it with `pmstore hotproc.control.reload_config 1`. The `proc` PMDA already ships in `pcp-system-tools`. The predicate `residentsize > 102400` keeps processes at or above about 100 MB. `hotproc.psinfo.rss` and `mem.util.free` are both kilobytes. The unfiltered `proc.psinfo.rss` series is not exported. No process above the floor means an empty hotproc instance domain, which is a successful onboard. If `group_vars/all.yml` sets `pcp_metrics`, include `hotproc.psinfo.rss` and `hotproc.psinfo.cmd` in that list. A copied group_vars file replaces the role default. These series are the input for the process-growth pattern in [Predictive worker](../optional/predictive-ai-worker.md#further-preemptive-patterns). The predictive worker does not yet emit that alert.
 
+Optional application metrics use the same `pmcd` and `pcp2kafka` path. The role does not install `pcp-pmda-apache` or `pcp-pmda-haproxy`. Add them only on hosts that run that workload, then append the metric names in that inventory group's `pcp_metrics`. Do not put those names in the role default. A missing name can stall `pcp2json` for every host.
+
+```mermaid
+flowchart LR
+  subgraph host [Workload host]
+    appLogs[App error or syslog]
+    rsyslog[rsyslog]
+    pmda[apache or haproxy PMDA]
+    pmcd[pmcd]
+    pcp2kafka[pcp2kafka]
+    appLogs --> rsyslog
+    pmda --> pmcd
+    pmcd --> pcp2kafka
+  end
+  logs[rhel-system-logs]
+  metrics[rhel-pcp-metrics]
+  eda[EDA on the hard-failure line]
+  worker[Optional worker]
+  grafana[Grafana via pmproxy]
+  rsyslog --> logs
+  pcp2kafka --> metrics
+  logs --> eda
+  logs --> worker
+  metrics --> worker
+  pmcd -.-> grafana
+```
+
+HAProxy lines that already use `log /dev/log local0` are copied with the rest of rsyslog. httpd file logs under `/var/log/httpd/` are not. Point `ErrorLog` at syslog, or add `imfile` for the error log only. Do not ship the access log. `pcp-pmda-apache` needs `ExtendedStatus On` and a loopback `/server-status` handler. `pcp-pmda-haproxy` needs the stats socket or a CSV URL enabled in HAProxy, then `Install` for that PMDA. Confirm HAProxy names with `pminfo -f haproxy` before they go into `pcp_metrics`. `pmproxy` on every host is still unnecessary: once the PMDA is in `pmcd`, a central scrape of `/metrics` can graph the series. The forecast and the log lines to treat as hard failures are in [Application workloads](../optional/predictive-ai-worker.md#application-workloads-httpd-and-haproxy).
+
 ### firewalld
 
 No inbound Kafka ports on the RHEL host. Optional `pmcd`/`pmproxy` as above. Confirm egress:

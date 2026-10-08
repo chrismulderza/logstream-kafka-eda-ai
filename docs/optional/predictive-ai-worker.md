@@ -43,7 +43,7 @@ Implementation lives under `worker/src/main/java/ai/logstream/worker/` (`predict
 
 ### Further preemptive patterns
 
-Filesystem-byte TTE is the only detector this worker implements. The four patterns below use the same shape: a positive slope (or a rising hardware-error rate) on one stream, a second signal on the same host, then one stable `alert_type` on `enriched-events`. Event-Driven Ansible matches that string and runs a fail-closed playbook. Inference text stays optional and does not decide the alert.
+Filesystem-byte TTE is the only detector this worker implements. The patterns below use the same shape: a positive slope (or a rising error rate) on one stream, a second signal on the same host, then one stable `alert_type` on `enriched-events`. Event-Driven Ansible matches that string and runs a fail-closed playbook. Inference text stays optional and does not decide the alert.
 
 Correlation belongs in a worker on group `stream-worker`. That consumer may also read `rhel-system-logs` without taking group `ansible-eda`. When the hard-failure string is already in the log, leave the event to the matching rule in [ansible/eda/rulebook.yml](../../ansible/eda/rulebook.yml).
 
@@ -94,6 +94,45 @@ Onboarding already exports the series. The `rhel_telemetry` role writes a hotpro
 **Storage-path degradation before filesystem corruption.** The catalog reacts to `I/O error`, `EXT4-fs error`, and `XFS: corrupt`, which is after the filesystem is already damaged. This pattern pairs a rate with a hardware log. It has no capacity TTE. Use the rate of `kernel.all.cpu.wait.total` (iowait ticks over the window, already collected). A per-device follow-on is `disk.dev.await`, which the default `pcp_metrics` list does not include. Leading logs on the same host, and the same device when the line has one: `exception Emask`, SCSI `FAILED Result`, `Medium Error` or a pending sector from `smartd`, or `blocked for more than 120 seconds`. Emit when iowait stays above the host baseline for the window and at least one of those lines is present. Skip when the line already matches the reactive filesystem-error rule, so [playbooks/isolate_host_io_error.yml](../../ansible/eda/playbooks/isolate_host_io_error.yml) is not started twice. Alert type: `PREEMPTIVE_STORAGE_PATH_DEGRADATION`. Run that diagnostic playbook so the ticket has evidence. Leave `allow_lb_isolate` false until a person drains the host. When `kernel.all.cpu.user` and `kernel.all.cpu.sys` dominate and wait does not, this alert does not apply.
 
 **One syslog tag filling `/var`.** Byte TTE on `/var` or `/var/log` can already fire `PREEMPTIVE_STORAGE_EXHAUSTION_RISK`. That alert cannot tell Event-Driven Ansible whether to grow the volume or stop the writer. Count messages per `host` and `syslogtag` in the same window. Emit when the byte slope is positive, TTE is inside the horizon, and one tag (a debug-enabled service, a restart loop, journald) accounts for most of the new lines. A single ATA or SMART line stays on the storage-path pattern. When no tag dominates, keep `PREEMPTIVE_STORAGE_EXHAUSTION_RISK` and [playbooks/proactive_disk_mitigation.yml](../../ansible/eda/playbooks/proactive_disk_mitigation.yml). Alert type: `PREEMPTIVE_LOG_FLOOD_RISK`, with `host`, mount, and `syslogtag`. The playbook records `journalctl` for that unit and the size of `/var/log`. Leave `allow_lvextend` and `allow_podman_prune` false for this alert. Growing the disk feeds the flood. A restart or rate-limit stays gated off.
+
+### Application workloads: httpd and HAProxy
+
+The patterns above watch the host. Apache httpd and HAProxy are the same shape on the hosts that run them. The worker does not emit these alerts, and [ansible/eda/rulebook.yml](../../ansible/eda/rulebook.yml) has no rules for them yet. Collection is optional and stays off the role defaults. See [RHEL telemetry](../deployment/rhel-telemetry.md#pcp-pcp2kafka).
+
+Anything rsyslog already handles is copied to `rhel-system-logs`. HAProxy on RHEL usually logs with `log /dev/log local0`, so those lines are already eligible. Match on `message`; `syslogtag` is typically `haproxy`. httpd writes `ErrorLog` and `CustomLog` under `/var/log/httpd/`. Those files stay off Kafka until `ErrorLog` points at syslog, or an `imfile` rule reads the error log only. Do not ship the access log. Request rate belongs in PCP (`apache.total_accesses`). An access log on this topic floods EDA. A 5xx sample, if you need one, is a filtered `imfile` or syslog rule. Keep the same topic. A new topic is only worth it if a filtered error stream needs its own retention.
+
+Reactive lines mean the failure already happened. A future catalog rule would throttle per host and leave remediation gates closed. Do not also emit a pre-emptive alert for that same line.
+
+- httpd: `server reached MaxRequestWorkers`, `scoreboard is full`, a child exit (`AH00045`), or a restart storm (`Caught SIGTERM, shutting down`).
+- HAProxy: `is DOWN`, `has no server available`, or `proxy` stopped. A backend with no usable server is the hard event.
+
+Pre-emptive alerts use the shared forecast. If the rate is zero or negative, do not emit.
+
+**httpd workers filling MaxRequestWorkers.** `pcp-pmda-apache` reads `mod_status` (`ExtendedStatus On` and a loopback `/server-status` handler). Capacity is `apache.busy_servers + apache.idle_servers + apache.sb_open_slot` (MaxRequestWorkers). Used is `apache.busy_servers`. Headroom is the idle servers plus open slots:
+
+```text
+TTE = (apache.idle_servers + apache.sb_open_slot) / (Δbusy / Δt)
+```
+
+`Δbusy / Δt` is the slope of `apache.busy_servers`. Ignore `apache.requests_per_sec` and `apache.bytes_per_sec`. Those are lifetime averages (`total / uptime`), not the current rate. Optional corroboration is a rising delta of `apache.total_accesses` on that host. Skip when the log already says `server reached MaxRequestWorkers` or `scoreboard is full`. Alert type: `PREEMPTIVE_HTTPD_WORKER_EXHAUSTION`. The playbook records `httpd` status and the slope. Do not reload httpd by default.
+
+**HAProxy sessions or queue filling.** `pcp-pmda-haproxy` reads the stats socket (default `/var/lib/haproxy/stats`) or a CSV URL. Confirm names with `pminfo -f haproxy` after install before adding them to `pcp_metrics`. Per backend, session headroom uses current sessions `scur` and the configured limit `slim`:
+
+```text
+TTE = (slim - scur) / (Δscur / Δt)
+```
+
+When a queue limit `qlimit` is set, queue headroom is separate. `qmax` is a high-water mark, not the ceiling:
+
+```text
+TTE = (qlimit - qcur) / (Δqcur / Δt)
+```
+
+`Δscur / Δt` and `Δqcur / Δt` are the slopes of those fields. Skip when the log already says `is DOWN` or `has no server available`. The playbook records HAProxy `show stat` and the slope. Do not drain the backend by default.
+
+**HAProxy errors while the backend is still up.** This pattern has no capacity TTE. Emit when the rate of connection errors `econ` or HTTP 5xx `hrsp_5xx` stays above that backend's baseline and `status` is still UP. That is the window before the DOWN line. Alert type: `PREEMPTIVE_HAPROXY_BACKEND_DEGRADATION`. The same playbook records `show stat` and the rate. Do not reload or drain by default.
+
+Grafana does not see these series until the PMDA is loaded in `pmcd` and a panel queries pmproxy `/metrics` (names such as `pcp_apache_busy_servers`). [grafana/pcp-system-metrics.json](../../grafana/pcp-system-metrics.json) has no httpd or HAProxy panels. `pmproxy` is still not required on every host. The Kafka path is the explicit `pcp_metrics` list for that inventory group only. A missing name in the global list can stall `pcp2json` on hosts that do not run the application.
 
 ## Local development (Quarkus dev mode)
 
