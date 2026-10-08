@@ -1,0 +1,46 @@
+---
+# Append hosts for host_search onto raw_applicable_hosts.
+# A search with more than 2000 matches fails instead of publishing a short page.
+
+- name: Read the first content-host page
+  ansible.builtin.uri:
+    url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/hosts?per_page=250&page=1&search={{ host_search | urlencode }}"
+    method: GET
+    url_username: "{{ satellite_username }}"
+    url_password: "{{ satellite_token }}"
+    force_basic_auth: true
+    validate_certs: "{{ satellite_validate_certs | bool }}"
+    status_code: [200]
+    timeout: 120
+  register: host_first
+
+- name: Refuse a content-host search above 2000 matches
+  ansible.builtin.assert:
+    that:
+      - (host_first.json.subtotal | default(0) | int) <= 2000
+    fail_msg: >-
+      Search "{{ host_search }}" matched {{ host_first.json.subtotal | default(0) }}
+      content hosts. The lookup stops at 2000 so it does not publish a partial page.
+
+- name: Read the rest of the content-host pages
+  ansible.builtin.uri:
+    url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/hosts?per_page=250&page={{ item }}&search={{ host_search | urlencode }}"
+    method: GET
+    url_username: "{{ satellite_username }}"
+    url_password: "{{ satellite_token }}"
+    force_basic_auth: true
+    validate_certs: "{{ satellite_validate_certs | bool }}"
+    status_code: [200]
+    timeout: 120
+  loop: "{{ range(2, (((host_first.json.subtotal | default(0) | int) / 250) | round(0, 'ceil') | int) + 1) | list }}"
+  register: host_rest
+  when: (host_first.json.subtotal | default(0) | int) > 250
+
+- name: Append content hosts from this search
+  ansible.builtin.set_fact:
+    raw_applicable_hosts: >-
+      {{
+        raw_applicable_hosts | default([])
+        + (host_first.json.results | default([]))
+        + (host_rest.results | default([]) | selectattr('json', 'defined') | map(attribute='json.results') | flatten(levels=1))
+      }}

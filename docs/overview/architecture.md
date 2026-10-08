@@ -73,6 +73,8 @@ OpenShift Routes listen on 443 even when the Kafka listener inside the cluster i
 | `raw-metrics` | 1 day | Optional extra producers | Optional worker | JSON metrics |
 | `enriched-events` | 3 days | Optional stream worker | Optional EDA rulebook | Predictive alerts and optional LLM fields |
 
+`security-advisories` is optional. [Automated Remediation](../optional/automated-remediation.md) deploys it for Satellite errata. It is not one of the four topics the Kafka chapter deploys.
+
 ### Syslog JSON (`rhel-system-logs`)
 
 ```json
@@ -114,8 +116,9 @@ Never share a `group.id` across independent consumers. Kafka delivers each parti
 | --- | --- |
 | Optional stream worker | `stream-worker` |
 | Event-Driven Ansible | `ansible-eda` |
+| Optional advisory remediation | `ansible-eda-advisories` |
 
-Grafana is a pmproxy scrape, described in [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md). It is not a Kafka consumer group.
+`ansible-eda-advisories` belongs to the optional advisory rulebook only. Grafana is a pmproxy scrape, described in [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md). It is not a Kafka consumer group.
 
 ## Optional predictive calculation
 

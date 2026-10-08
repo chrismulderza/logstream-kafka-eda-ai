@@ -1,0 +1,107 @@
+---
+# change_approved schedules katello_errata_install at errata_schedule_start.
+# allow_errata_schedule stays false until an operator sets it on the activation.
+# With the flag false, this playbook records the request and does not call Satellite.
+# katello_errata_install_succeeded must not start this playbook again.
+
+- name: Schedule errata installation after change approval
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    satellite_url: ""
+    satellite_username: ""
+    satellite_token: ""
+    satellite_validate_certs: true
+    satellite_errata_types:
+      - security
+    allow_errata_schedule: false
+    errata_schedule_start: ""
+    errata: []
+    content_hosts: []
+    ticket_id: ""
+    dedupe_key: ""
+  tasks:
+    - name: Require Satellite API settings
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/require_satellite.yml"
+
+    - name: Parse event fields that arrived as text
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/coerce_event_fields.yml"
+
+    - name: Require a ticket id
+      ansible.builtin.assert:
+        that:
+          - (ticket_id | default('') | length > 0) or (dedupe_key | default('') | length > 0)
+        fail_msg: change_approved needs ticket_id or dedupe_key.
+
+    - name: Record the request and skip the install
+      when: not (allow_errata_schedule | bool)
+      block:
+        - name: Show that installation was not scheduled
+          ansible.builtin.debug:
+            msg:
+              result: allow_errata_schedule is false. katello_errata_install was not called.
+              ticket_id: "{{ ticket_id }}"
+              dedupe_key: "{{ dedupe_key }}"
+              errata_schedule_start: "{{ errata_schedule_start }}"
+
+        - name: End the play
+          ansible.builtin.meta: end_play
+
+    - name: Require a start time and the approved scope
+      ansible.builtin.assert:
+        that:
+          - errata_schedule_start | length > 0
+          - errata is not string
+          - errata | length > 0
+          - content_hosts is not string
+          - content_hosts | length > 0
+        fail_msg: Set errata_schedule_start and include the errata and hosts from the approved ticket.
+
+    - name: Collect erratum ids
+      ansible.builtin.set_fact:
+        errata_ids: "{{ errata_ids | default([]) + [item.errata_id] }}"
+      loop: "{{ errata }}"
+
+    - name: Collect host names
+      ansible.builtin.set_fact:
+        host_names: "{{ host_names | default([]) + [item.name | default(item)] }}"
+      loop: "{{ content_hosts }}"
+
+    - name: Require ids, names, and no commas in host names
+      ansible.builtin.assert:
+        that:
+          - errata_ids | select('match', '.+') | list | length == errata | length
+          - host_names | select('match', '.+') | list | length == content_hosts | length
+          - host_names | select('search', ',') | list | length == 0
+        fail_msg: Each erratum needs errata_id, and each host name must be non-empty and contain no comma.
+
+    - name: Schedule katello_errata_install
+      ansible.builtin.uri:
+        url: "{{ satellite_url | regex_replace('/$', '') }}/api/job_invocations"
+        method: POST
+        url_username: "{{ satellite_username }}"
+        url_password: "{{ satellite_token }}"
+        force_basic_auth: true
+        validate_certs: "{{ satellite_validate_certs | bool }}"
+        body_format: json
+        body:
+          job_invocation:
+            feature: katello_errata_install
+            inputs:
+              errata: "{{ errata_ids | join(',') }}"
+            search_query: "name ^ ({{ host_names | join(', ') }})"
+            targeting_type: static_query
+            scheduling:
+              start_at: "{{ errata_schedule_start }}"
+        status_code: [200, 201]
+        timeout: 120
+      register: job_invocation
+
+    - name: Show the scheduled job
+      ansible.builtin.debug:
+        msg:
+          job_invocation_id: "{{ job_invocation.json.id | default(job_invocation.json) }}"
+          start_at: "{{ errata_schedule_start }}"
+          errata: "{{ errata_ids }}"
+          hosts: "{{ host_names }}"

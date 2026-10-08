@@ -1,0 +1,139 @@
+---
+# Optional advisory chain (docs/optional/automated-remediation.md).
+# Run this in its own process. group_id stays ansible-eda-advisories.
+# This file does not read kafka_group_id, so a syslog vars file cannot
+# attach it to the ansible-eda group.
+
+- name: Satellite security advisories
+  hosts: rhel_telemetry
+  sources:
+    - name: security_advisories
+      ansible.eda.kafka:
+        host: "{{ kafka_host }}"
+        port: "{{ kafka_port }}"
+        topic: security-advisories
+        group_id: "{{ advisory_kafka_group_id | default('ansible-eda-advisories') }}"
+        offset: "{{ kafka_offset | default('latest') }}"
+        security_protocol: "{{ kafka_security_protocol | default('PLAINTEXT') }}"
+  rules:
+    - name: Repository sync
+      condition: >-
+        event.body.stage == "repository_sync" or
+        event.stage == "repository_sync"
+      throttle:
+        once_after: 1 minute
+        group_by_attributes:
+          - event.body.task_id
+          - event.task_id
+      actions:
+        - run_playbook:
+            name: playbooks/lookup_sync_errata.yml
+            extra_vars: &advisory_connection
+              satellite_url: "{{ satellite_url | default('') }}"
+              satellite_username: "{{ satellite_username | default('') }}"
+              satellite_token: "{{ satellite_token | default('') }}"
+              satellite_validate_certs: "{{ satellite_validate_certs | default(true) }}"
+              satellite_errata_types: "{{ satellite_errata_types | default(['security']) }}"
+              kafka_bridge_url: "{{ kafka_bridge_url | default('') }}"
+              kafka_bridge_validate_certs: "{{ kafka_bridge_validate_certs | default(true) }}"
+              allow_errata_schedule: "{{ allow_errata_schedule | default(false) }}"
+              errata_schedule_start: "{{ errata_schedule_start | default('') }}"
+              promote_ticket_url: "{{ promote_ticket_url | default('') }}"
+              change_ticket_url: "{{ change_ticket_url | default('') }}"
+              task_id: "{{ event.body.task_id | default(event.task_id) | default('') }}"
+              task_input: "{{ event.body.task_input | default(event.task_input) | default({}) }}"
+
+    - name: Errata added
+      condition: >-
+        event.body.stage == "errata_added" or
+        event.stage == "errata_added"
+      throttle:
+        once_after: 1 minute
+        group_by_attributes:
+          - event.body.dedupe_key
+          - event.dedupe_key
+      actions:
+        - run_playbook:
+            name: playbooks/lookup_affected_hosts.yml
+            extra_vars:
+              <<: *advisory_connection
+              repository_id: "{{ event.body.repository_id | default(event.repository_id) | default('') }}"
+              dedupe_key: "{{ event.body.dedupe_key | default(event.dedupe_key) | default('') }}"
+              errata: "{{ event.body.errata | default(event.errata) | default([]) }}"
+
+    - name: Hosts affected
+      condition: >-
+        event.body.stage == "hosts_affected" or
+        event.stage == "hosts_affected"
+      throttle:
+        once_after: 1 minute
+        group_by_attributes:
+          - event.body.dedupe_key
+          - event.dedupe_key
+      actions:
+        - run_playbook:
+            name: playbooks/incremental_update_content_views.yml
+            extra_vars:
+              <<: *advisory_connection
+              repository_id: "{{ event.body.repository_id | default(event.repository_id) | default('') }}"
+              dedupe_key: "{{ event.body.dedupe_key | default(event.dedupe_key) | default('') }}"
+              errata: "{{ event.body.errata | default(event.errata) | default([]) }}"
+              content_hosts: "{{ event.body.hosts | default(event.hosts) | default([]) }}"
+
+    - name: Content view ready
+      condition: >-
+        event.body.stage == "content_view_ready" or
+        event.stage == "content_view_ready"
+      throttle:
+        once_after: 1 minute
+        group_by_attributes:
+          - event.body.dedupe_key
+          - event.dedupe_key
+      actions:
+        - run_playbook:
+            name: playbooks/open_promote_ticket.yml
+            extra_vars:
+              <<: *advisory_connection
+              dedupe_key: "{{ event.body.dedupe_key | default(event.dedupe_key) | default('') }}"
+              errata: "{{ event.body.errata | default(event.errata) | default([]) }}"
+              content_hosts: "{{ event.body.hosts | default(event.hosts) | default([]) }}"
+              content_views: "{{ event.body.content_views | default(event.content_views) | default([]) }}"
+
+    - name: Content view promoted
+      condition: >-
+        event.body.stage == "content_view_promoted" or
+        event.stage == "content_view_promoted"
+      throttle:
+        once_after: 1 minute
+        group_by_attributes:
+          - event.body.task_id
+          - event.task_id
+      actions:
+        - run_playbook:
+            name: playbooks/open_change_ticket.yml
+            extra_vars:
+              <<: *advisory_connection
+              task_id: "{{ event.body.task_id | default(event.task_id) | default('') }}"
+              task_input: "{{ event.body.task_input | default(event.task_input) | default({}) }}"
+
+    - name: Change approved
+      condition: >-
+        event.body.stage == "change_approved" or
+        event.stage == "change_approved"
+      throttle:
+        once_after: 1 minute
+        group_by_attributes:
+          - event.body.dedupe_key
+          - event.body.ticket_id
+          - event.dedupe_key
+          - event.ticket_id
+      actions:
+        - run_playbook:
+            name: playbooks/schedule_errata_install.yml
+            extra_vars:
+              <<: *advisory_connection
+              ticket_id: "{{ event.body.ticket_id | default(event.ticket_id) | default('') }}"
+              dedupe_key: "{{ event.body.dedupe_key | default(event.dedupe_key) | default('') }}"
+              errata_schedule_start: "{{ event.body.errata_schedule_start | default(errata_schedule_start) | default('') }}"
+              errata: "{{ event.body.errata | default(event.errata) | default([]) }}"
+              content_hosts: "{{ event.body.hosts | default(event.hosts) | default([]) }}"

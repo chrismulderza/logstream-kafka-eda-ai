@@ -95,7 +95,7 @@ Changing a name means updating every producer and consumer that uses it. Copy th
 1. Read [Architecture](architecture.md) so topic names, listeners, and consumer groups stay consistent, then complete [Prerequisites](prerequisites.md) before changing production hosts or the cluster.
 2. Deploy [Kafka on OpenShift](../deployment/kafka-openshift.md), [RHEL telemetry](../deployment/rhel-telemetry.md), and [Event-Driven Ansible](../deployment/event-driven-ansible.md) for the ten syslog events.
 3. Run [Validation](../validation/runbook.md) before enabling remediation safety gates.
-4. Add the [predictive worker](../optional/predictive-ai-worker.md) only if you need PCP time-to-exhaustion, and [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md) if you want Grafana views.
+4. Add the [predictive worker](../optional/predictive-ai-worker.md) only if you need PCP time-to-exhaustion, [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md) if you want Grafana views, and [Automated Remediation](../optional/automated-remediation.md) if Satellite should open content-view changes from repository sync.
 
 Preview locally:
 
@@ -116,6 +116,7 @@ mkdocs serve
 | Validation | [Runbook](../validation/runbook.md) | Synthetic tests and CLI checks | [`scripts/`](../../scripts) |
 | Optional | [Predictive worker](../optional/predictive-ai-worker.md) | Stream worker and inference client | [`worker/`](../../worker), [`openshift/worker/`](../../openshift/worker) |
 | Optional | [Metrics Dashboard using PCP](../optional/metrics-dashboard-pcp.md) | pmcd, optional pmproxy, Grafana | [`grafana/`](../../grafana) |
+| Optional | [Automated Remediation](../optional/automated-remediation.md) | Advisory topic, HTTP Bridge, Satellite webhooks, EDA job chain | [`openshift/kafka/`](../../openshift/kafka), [`satellite/`](../../satellite), [`ansible/eda/`](../../ansible/eda) |
 
 ## Next
 

@@ -78,3 +78,4 @@ nav:
   - Optional:
       - Predictive worker: optional/predictive-ai-worker.md
       - Metrics Dashboard using PCP: optional/metrics-dashboard-pcp.md
+      - Automated Remediation: optional/automated-remediation.md

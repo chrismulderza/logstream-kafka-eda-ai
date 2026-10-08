@@ -1,0 +1,170 @@
+---
+# repository_sync -> errata_added, or stop.
+# Applicable means the package is installed. These errata are not installable
+# until a later content-view promotion.
+
+- name: Look up errata added by a repository sync
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    satellite_url: ""
+    satellite_username: ""
+    satellite_token: ""
+    satellite_validate_certs: true
+    satellite_errata_types:
+      - security
+    task_id: ""
+    task_input: {}
+  tasks:
+    - name: Require Satellite API settings
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/require_satellite.yml"
+
+    - name: Parse event fields that arrived as text
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/coerce_event_fields.yml"
+
+    - name: Normalize the sync task input
+      ansible.builtin.set_fact:
+        sync_task_input: "{{ task_input if task_input is mapping else (task_input | from_json) }}"
+
+    - name: Read a repository id from the task input
+      ansible.builtin.set_fact:
+        repository_id: >-
+          {{
+            sync_task_input.repository_id
+            | default(sync_task_input.repo_id)
+            | default((sync_task_input.repository | default({})).id)
+            | default((sync_task_input.repo | default({})).id)
+            | default('')
+          }}
+
+    - name: Search one nested level for a repository id
+      ansible.builtin.set_fact:
+        repository_id: >-
+          {{
+            item.repository_id
+            | default(item.repo_id)
+            | default((item.repository | default({})).id)
+            | default((item.repo | default({})).id)
+            | default(repository_id)
+          }}
+      loop: "{{ sync_task_input | dict2items | map(attribute='value') | select('mapping') | list }}"
+      when: repository_id | string | length == 0
+
+    - name: Require a repository id and a task id
+      ansible.builtin.assert:
+        that:
+          - repository_id | string | length > 0
+          - task_id | string | length > 0
+        fail_msg: >-
+          The sync event has no repository id or task id. task_input was
+          {{ sync_task_input }}.
+
+    - name: Read the repository sync task
+      ansible.builtin.uri:
+        url: "{{ satellite_url | regex_replace('/$', '') }}/foreman_tasks/api/tasks/{{ task_id }}"
+        method: GET
+        url_username: "{{ satellite_username }}"
+        url_password: "{{ satellite_token }}"
+        force_basic_auth: true
+        validate_certs: "{{ satellite_validate_certs | bool }}"
+        status_code: [200]
+        timeout: 60
+      register: sync_task
+
+    - name: Require the task start time
+      ansible.builtin.assert:
+        that:
+          - sync_task.json.started_at | default('') | length >= 10
+        fail_msg: The sync task has no started_at, so new errata cannot be selected.
+
+    - name: Build the errata type search
+      ansible.builtin.set_fact:
+        errata_type_search: "{{ satellite_errata_types | map('lower') | map('regex_replace', '^(.*)$', 'type = \\1') | join(' or ') }}"
+        sync_day: "{{ sync_task.json.started_at[:10] }}"
+
+    - name: Read the first errata page
+      ansible.builtin.uri:
+        url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/repositories/{{ repository_id }}/errata?per_page=250&page=1&search={{ errata_type_search | urlencode }}"
+        method: GET
+        url_username: "{{ satellite_username }}"
+        url_password: "{{ satellite_token }}"
+        force_basic_auth: true
+        validate_certs: "{{ satellite_validate_certs | bool }}"
+        status_code: [200]
+        timeout: 120
+      register: errata_first
+
+    - name: Refuse an errata search above 5000 matches
+      ansible.builtin.assert:
+        that:
+          - (errata_first.json.subtotal | default(0) | int) <= 5000
+        fail_msg: >-
+          Search "{{ errata_type_search }}" returned {{ errata_first.json.subtotal | default(0) }}
+          errata in repository {{ repository_id }}. The lookup stops at 5000 so it does not
+          publish a partial page. Confirm the search with hammer erratum list.
+
+    - name: Read the rest of the errata pages
+      ansible.builtin.uri:
+        url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/repositories/{{ repository_id }}/errata?per_page=250&page={{ item }}&search={{ errata_type_search | urlencode }}"
+        method: GET
+        url_username: "{{ satellite_username }}"
+        url_password: "{{ satellite_token }}"
+        force_basic_auth: true
+        validate_certs: "{{ satellite_validate_certs | bool }}"
+        status_code: [200]
+        timeout: 120
+      loop: "{{ range(2, (((errata_first.json.subtotal | default(0) | int) / 250) | round(0, 'ceil') | int) + 1) | list }}"
+      register: errata_rest
+      when: (errata_first.json.subtotal | default(0) | int) > 250
+
+    - name: Combine errata pages
+      ansible.builtin.set_fact:
+        repo_errata_results: >-
+          {{
+            (errata_first.json.results | default([]))
+            + (errata_rest.results | default([]) | selectattr('json', 'defined') | map(attribute='json.results') | flatten(levels=1))
+          }}
+
+    - name: Keep configured errata types updated on or after the sync day
+      ansible.builtin.set_fact:
+        added_errata: "{{ added_errata | default([]) + [erratum] }}"
+      vars:
+        erratum:
+          id: "{{ item.id }}"
+          errata_id: "{{ item.errata_id }}"
+          type: "{{ item.type | default('') }}"
+          title: "{{ item.title | default('') }}"
+        erratum_day: "{{ (item.updated | default(item.issued | default('')))[:10] }}"
+      loop: "{{ repo_errata_results }}"
+      when:
+        - item.type | default('') | lower in satellite_errata_types
+        - erratum_day | length == 10
+        - erratum_day >= sync_day
+
+    - name: Dedupe on erratum id
+      ansible.builtin.set_fact:
+        added_errata: "{{ added_errata | default([]) | unique(attribute='errata_id') }}"
+
+    - name: Stop when the sync added no matching errata
+      when: added_errata | length == 0
+      block:
+        - name: Record an empty errata lookup
+          ansible.builtin.debug:
+            msg: >-
+              No {{ satellite_errata_types | join(', ') }} errata were updated
+              on or after {{ sync_task.json.started_at[:10] }} in repository
+              {{ repository_id }}. Not publishing errata_added.
+
+        - name: End the play
+          ansible.builtin.meta: end_play
+
+    - name: Publish errata_added
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/publish_advisory_stage.yml"
+      vars:
+        advisory_message:
+          stage: errata_added
+          repository_id: "{{ repository_id }}"
+          task_id: "{{ task_id }}"
+          dedupe_key: "errata-{{ repository_id }}-{{ added_errata | map(attribute='errata_id') | sort | join(',') }}"
+          errata: "{{ added_errata }}"

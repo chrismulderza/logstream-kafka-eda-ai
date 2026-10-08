@@ -1,0 +1,187 @@
+---
+# Included once per content view. Satellite has no incremental-update webhook,
+# so the caller waits for the Foreman task and then publishes content_view_ready.
+# A version that already contains the errata and is still waiting for promotion
+# is left unchanged.
+
+- name: List versions for content view {{ content_view_id }}
+  ansible.builtin.uri:
+    url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/content_view_versions?content_view_id={{ content_view_id }}&per_page=100"
+    method: GET
+    url_username: "{{ satellite_username }}"
+    url_password: "{{ satellite_token }}"
+    force_basic_auth: true
+    validate_certs: "{{ satellite_validate_certs | bool }}"
+    status_code: [200]
+    timeout: 120
+  register: cv_versions
+
+- name: Refuse a truncated version list
+  ansible.builtin.assert:
+    that:
+      - (cv_versions.json.subtotal | default(0) | int) <= 100
+    fail_msg: Content view {{ content_view_id }} has more than 100 versions.
+
+- name: Reset the Library version list
+  ansible.builtin.set_fact:
+    library_versions: []
+
+- name: Keep versions that are in Library
+  ansible.builtin.set_fact:
+    library_versions: "{{ library_versions + [item] }}"
+  loop: "{{ cv_versions.json.results | default([]) }}"
+  when: "'Library' in (item.environments | default([]) | map(attribute='name') | list)"
+
+- name: Require a Library version
+  ansible.builtin.assert:
+    that:
+      - library_versions | length > 0
+    fail_msg: Content view {{ content_view_id }} has no version in Library. Incremental update needs one.
+
+- name: Use the newest Library version
+  ansible.builtin.set_fact:
+    library_version: "{{ library_versions | sort(attribute='id') | last }}"
+    target_env_names: >-
+      {{
+        content_hosts
+        | selectattr('content_view_id', 'equalto', content_view_id | string)
+        | map(attribute='lifecycle_environment_name')
+        | unique
+        | list
+      }}
+    cv_name: >-
+      {{
+        content_hosts
+        | selectattr('content_view_id', 'equalto', content_view_id | string)
+        | map(attribute='content_view_name')
+        | first
+        | default('content-view-' ~ content_view_id)
+      }}
+
+- name: Check whether each erratum is already in that version
+  ansible.builtin.uri:
+    url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/content_view_versions/{{ library_version.id }}/errata?per_page=1&search={{ search | urlencode }}"
+    method: GET
+    url_username: "{{ satellite_username }}"
+    url_password: "{{ satellite_token }}"
+    force_basic_auth: true
+    validate_certs: "{{ satellite_validate_certs | bool }}"
+    status_code: [200]
+    timeout: 60
+  vars:
+    search: errata_id = "{{ item.errata_id }}"
+  loop: "{{ errata }}"
+  register: errata_in_version
+
+- name: Reset the missing-errata list
+  ansible.builtin.set_fact:
+    missing_errata: []
+
+- name: Record errata that are not in the Library version
+  ansible.builtin.set_fact:
+    missing_errata: "{{ missing_errata + [item.item] }}"
+  loop: "{{ errata_in_version.results }}"
+  when: (item.json.subtotal | default(0) | int) < 1
+
+- name: Leave a version that already contains these errata
+  ansible.builtin.debug:
+    msg: >-
+      Content view {{ content_view_id }} version {{ library_version.id }}
+      already contains these errata. Environments on that version:
+      {{ library_version.environments | default([]) | map(attribute='name') | list }}.
+      Host environments still to promote: {{ target_env_names }}.
+      Not creating another version.
+  when: missing_errata | length == 0
+
+- name: Incremental-update the Library version
+  ansible.builtin.uri:
+    url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/content_view_versions/incremental_update"
+    method: POST
+    url_username: "{{ satellite_username }}"
+    url_password: "{{ satellite_token }}"
+    force_basic_auth: true
+    validate_certs: "{{ satellite_validate_certs | bool }}"
+    body_format: json
+    body:
+      content_view_version_environments:
+        - content_view_version_id: "{{ library_version.id | int }}"
+      add_content:
+        errata_ids: "{{ missing_errata | map(attribute='id') | map('int') | list }}"
+      resolve_dependencies: true
+    status_code: [200, 201]
+    timeout: 120
+  register: incremental
+  when: missing_errata | length > 0
+
+- name: Wait for the new Library version
+  when: not (incremental.skipped | default(false) | bool)
+  block:
+    - name: Read the Foreman task id
+      ansible.builtin.set_fact:
+        incremental_task_id: "{{ incremental.json.id | default(incremental.json.task.id) }}"
+
+    - name: Wait until the incremental-update task stops
+      ansible.builtin.uri:
+        url: "{{ satellite_url | regex_replace('/$', '') }}/foreman_tasks/api/tasks/{{ incremental_task_id }}"
+        method: GET
+        url_username: "{{ satellite_username }}"
+        url_password: "{{ satellite_token }}"
+        force_basic_auth: true
+        validate_certs: "{{ satellite_validate_certs | bool }}"
+        status_code: [200]
+        timeout: 60
+      register: task_poll
+      until: task_poll.json.state | default('') in ['stopped', 'paused']
+      retries: "{{ satellite_task_retries | default(120) | int }}"
+      delay: "{{ satellite_task_delay_seconds | default(15) | int }}"
+
+    - name: Require a successful incremental update
+      ansible.builtin.assert:
+        that:
+          - task_poll.json.state == 'stopped'
+          - task_poll.json.result == 'success'
+        fail_msg: Incremental update did not succeed. content_view_ready was not published.
+
+    - name: List versions after the update
+      ansible.builtin.uri:
+        url: "{{ satellite_url | regex_replace('/$', '') }}/katello/api/content_view_versions?content_view_id={{ content_view_id }}&per_page=100"
+        method: GET
+        url_username: "{{ satellite_username }}"
+        url_password: "{{ satellite_token }}"
+        force_basic_auth: true
+        validate_certs: "{{ satellite_validate_certs | bool }}"
+        status_code: [200]
+        timeout: 120
+      register: cv_versions_after
+
+    - name: Reset the new-version list
+      ansible.builtin.set_fact:
+        new_library_versions: []
+
+    - name: Keep Library versions newer than the one that was updated
+      ansible.builtin.set_fact:
+        new_library_versions: "{{ new_library_versions + [item] }}"
+      loop: "{{ cv_versions_after.json.results | default([]) }}"
+      when:
+        - item.id | int > (library_version.id | int)
+        - "'Library' in (item.environments | default([]) | map(attribute='name') | list)"
+
+    - name: Require a new Library version id
+      ansible.builtin.assert:
+        that:
+          - new_library_versions | length > 0
+        fail_msg: Incremental update finished but no newer Library version exists. content_view_ready was not published.
+
+    - name: Remember the new version
+      ansible.builtin.set_fact:
+        newest_version: "{{ new_library_versions | sort(attribute='id') | last }}"
+
+    - name: Add the content view to the promote ticket
+      ansible.builtin.set_fact:
+        updated_content_views: "{{ updated_content_views | default([]) + [view_row] }}"
+      vars:
+        view_row:
+          id: "{{ content_view_id | int }}"
+          name: "{{ cv_name }}"
+          version_id: "{{ newest_version.id | int }}"
+          lifecycle_environment_names: "{{ target_env_names }}"

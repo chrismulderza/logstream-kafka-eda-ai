@@ -1,0 +1,14 @@
+# Streams for Apache Kafka HTTP Bridge. This pack produces with
+# POST /topics/security-advisories. The process also serves a consumer API.
+# kafka-bridge-route.yaml matches /topics only, so webhook clients cannot
+# open consumer sessions through the Route.
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaBridge
+metadata:
+  name: telemetry-bridge
+  namespace: logstream-kafka
+spec:
+  replicas: 1
+  bootstrapServers: telemetry-kafka-plain-bootstrap.logstream-kafka.svc:9092
+  http:
+    port: 8080

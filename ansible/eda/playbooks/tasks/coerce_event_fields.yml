@@ -1,0 +1,23 @@
+---
+# Event-Driven Ansible may render a list or object extra var as text.
+# Parse those strings before the playbooks treat them as structure.
+
+- name: Parse errata when it arrives as a string
+  ansible.builtin.set_fact:
+    errata: "{{ errata | from_yaml }}"
+  when: errata is defined and errata is string and errata | length > 0
+
+- name: Parse content_hosts when it arrives as a string
+  ansible.builtin.set_fact:
+    content_hosts: "{{ content_hosts | from_yaml }}"
+  when: content_hosts is defined and content_hosts is string and content_hosts | length > 0
+
+- name: Parse content_views when it arrives as a string
+  ansible.builtin.set_fact:
+    content_views: "{{ content_views | from_yaml }}"
+  when: content_views is defined and content_views is string and content_views | length > 0
+
+- name: Parse task_input when it arrives as a string
+  ansible.builtin.set_fact:
+    task_input: "{{ task_input | from_yaml }}"
+  when: task_input is defined and task_input is string and task_input | length > 0

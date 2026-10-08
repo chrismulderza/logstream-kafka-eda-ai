@@ -315,3 +315,5 @@ Confirm the existing syslog destination still receives the same lines. Confirm K
 ## Next
 
 Prove the syslog path in [Validation](../validation/runbook.md). Deploy the [optional predictive worker](../optional/predictive-ai-worker.md) only if you need PCP time-to-exhaustion.
+
+Satellite repository sync and content-view promotion are a separate topic and consumer group. See [Automated Remediation](../optional/automated-remediation.md). Do not put those webhooks on `rhel-system-logs`, and do not reuse `ansible-eda`.

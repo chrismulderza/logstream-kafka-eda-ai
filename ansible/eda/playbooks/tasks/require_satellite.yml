@@ -1,0 +1,22 @@
+---
+- name: Parse satellite_errata_types when it arrives as a string
+  ansible.builtin.set_fact:
+    satellite_errata_types: "{{ satellite_errata_types | from_yaml }}"
+  when: satellite_errata_types is string
+
+- name: Wrap a single errata type
+  ansible.builtin.set_fact:
+    satellite_errata_types: "{{ [satellite_errata_types] }}"
+  when: satellite_errata_types is string
+
+- name: Require Satellite API settings
+  ansible.builtin.assert:
+    that:
+      - satellite_url | default('') | length > 0
+      - satellite_username | default('') | length > 0
+      - satellite_token | default('') | length > 0
+      - satellite_token != 'replace-with-personal-access-token'
+      - satellite_errata_types | length > 0
+    fail_msg: >-
+      Set satellite_url, satellite_username, and a personal access token.
+      satellite_errata_types must list at least one erratum type, such as security.

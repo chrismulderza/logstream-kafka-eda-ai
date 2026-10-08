@@ -1,0 +1,37 @@
+{
+  "records": [
+    {
+      "value": {
+        "stage": "change_approved",
+        "ticket_id": "CHG-1000",
+        "dedupe_key": "CHG-1000",
+        "errata_schedule_start": "2026-10-09T02:00:00Z",
+        "errata": [
+          {
+            "id": 100,
+            "errata_id": "RHSA-2026:0001",
+            "type": "security",
+            "title": "Example advisory"
+          }
+        ],
+        "hosts": [
+          {
+            "name": "app01.example.com",
+            "content_view_id": "3",
+            "content_view_name": "RHEL9",
+            "lifecycle_environment_id": "4",
+            "lifecycle_environment_name": "Production"
+          }
+        ],
+        "content_views": [
+          {
+            "id": 3,
+            "name": "RHEL9",
+            "version_id": 99,
+            "lifecycle_environment_names": ["Production"]
+          }
+        ]
+      }
+    }
+  ]
+}

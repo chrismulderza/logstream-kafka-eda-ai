@@ -1,0 +1,133 @@
+---
+# content_view_promoted opens or updates the change ticket.
+# The errata are installable after promotion. This playbook does not call
+# katello_errata_install. The change system POSTs stage change_approved
+# after a person approves the window.
+
+- name: Open or update the change ticket after content view promotion
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    satellite_url: ""
+    satellite_username: ""
+    satellite_token: ""
+    satellite_validate_certs: true
+    satellite_errata_types:
+      - security
+    change_ticket_url: ""
+    task_id: ""
+    task_input: {}
+  tasks:
+    - name: Require Satellite API settings
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/require_satellite.yml"
+
+    - name: Parse event fields that arrived as text
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/coerce_event_fields.yml"
+
+    - name: Normalize the promote task input
+      ansible.builtin.set_fact:
+        promote_input: "{{ task_input if task_input is mapping else (task_input | from_json) }}"
+
+    - name: Read content view, version, and environment
+      ansible.builtin.set_fact:
+        cv_id: >-
+          {{
+            promote_input.content_view_id
+            | default((promote_input.content_view | default({})).id)
+            | default('')
+          }}
+        version_id: >-
+          {{
+            promote_input.content_view_version_id
+            | default(promote_input.version_id)
+            | default((promote_input.content_view_version | default({})).id)
+            | default('')
+          }}
+        environment_id: >-
+          {{
+            promote_input.environment_id
+            | default((promote_input.environment | default({})).id)
+            | default('')
+          }}
+        environment_name: >-
+          {{
+            promote_input.environment_name
+            | default((promote_input.environment | default({})).name)
+            | default('')
+          }}
+        content_view_name: >-
+          {{
+            promote_input.content_view_name
+            | default((promote_input.content_view | default({})).name)
+            | default('')
+          }}
+
+    - name: Require the promoted version
+      ansible.builtin.assert:
+        that:
+          - cv_id | string | length > 0
+          - version_id | string | length > 0
+          - (environment_id | string | length > 0) or (environment_name | length > 0)
+        fail_msg: >-
+          The promote event is missing content view, version, or environment.
+          task_input was {{ promote_input }}.
+
+    - name: Choose the host search
+      ansible.builtin.set_fact:
+        host_search: "content_view_id = {{ cv_id }} and lifecycle_environment_id = {{ environment_id }}"
+      when: environment_id | string | length > 0
+
+    - name: Choose the host search by environment name
+      ansible.builtin.set_fact:
+        host_search: "content_view_id = {{ cv_id }} and lifecycle_environment = \"{{ environment_name }}\""
+      when:
+        - environment_id | string | length == 0
+        - environment_name | length > 0
+
+    - name: Reset the host list
+      ansible.builtin.set_fact:
+        raw_applicable_hosts: []
+
+    - name: List content hosts in the promoted environment
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/collect_content_hosts.yml"
+
+    - name: Build the host list for the change ticket
+      ansible.builtin.set_fact:
+        ticket_hosts: "{{ ticket_hosts | default([]) + [host_record] }}"
+      vars:
+        host_record:
+          name: "{{ item.name }}"
+          content_view_id: "{{ cv_id | string }}"
+          content_view_name: "{{ content_view_name }}"
+          lifecycle_environment_id: "{{ environment_id | string }}"
+          lifecycle_environment_name: "{{ environment_name }}"
+      loop: "{{ raw_applicable_hosts }}"
+      when: item.name | default('') | length > 0
+
+    - name: Build the change ticket
+      ansible.builtin.set_fact:
+        ticket:
+          summary: Content view promoted; waiting for a change window before errata install
+          task_id: "{{ task_id }}"
+          content_view_id: "{{ cv_id }}"
+          content_view_name: "{{ content_view_name }}"
+          content_view_version_id: "{{ version_id }}"
+          environment_id: "{{ environment_id }}"
+          environment_name: "{{ environment_name }}"
+          hosts: "{{ ticket_hosts | default([]) }}"
+          errata_source: Copy errata from the promote ticket into change_approved. This job does not install them.
+
+    - name: Show the change ticket
+      ansible.builtin.debug:
+        msg: "{{ ticket }}"
+
+    - name: POST the change ticket when a URL is set
+      ansible.builtin.uri:
+        url: "{{ change_ticket_url }}"
+        method: POST
+        body_format: json
+        body: "{{ ticket }}"
+        status_code: [200, 201, 202, 204]
+        timeout: 60
+      when: change_ticket_url | default('') | length > 0

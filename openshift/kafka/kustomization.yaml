@@ -12,3 +12,6 @@ resources:
   - kafka-topic-rhel-pcp-metrics.yaml
   - kafka-topic-raw-metrics.yaml
   - kafka-topic-enriched-events.yaml
+  - kafka-topic-security-advisories.yaml
+  - kafka-bridge.yaml
+  - kafka-bridge-route.yaml

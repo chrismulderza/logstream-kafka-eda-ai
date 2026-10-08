@@ -1,0 +1,17 @@
+<%#
+  Webhook template for actions.katello.repository.sync_succeeded.
+  Set the webhook Content-Type to application/vnd.kafka.json.v2+json.
+  @object is the Foreman task. @event_name is the subscribed event.
+%>
+{
+  "records": [
+    {
+      "value": {
+        "stage": "repository_sync",
+        "event_name": <%= @event_name.to_json %>,
+        "task_id": <%= @object.id.to_json %>,
+        "task_input": <%= (@object.respond_to?(:input) ? @object.input : {}).to_json %>
+      }
+    }
+  ]
+}

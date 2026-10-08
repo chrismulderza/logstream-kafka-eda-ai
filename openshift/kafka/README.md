@@ -27,6 +27,12 @@ Topic files:
 - [kafka-topic-raw-metrics.yaml](kafka-topic-raw-metrics.yaml) — 1d retention
 - [kafka-topic-enriched-events.yaml](kafka-topic-enriched-events.yaml) — 3d retention
 
+Optional, for [Automated Remediation](../../docs/optional/automated-remediation.md) only. `oc apply -k .` includes these. They are not part of the four-topic syslog path:
+
+- [kafka-topic-security-advisories.yaml](kafka-topic-security-advisories.yaml) — 7d retention
+- [kafka-bridge.yaml](kafka-bridge.yaml) — HTTP Bridge `telemetry-bridge`
+- [kafka-bridge-route.yaml](kafka-bridge-route.yaml) — edge Route, path `/topics`
+
 ## Commands
 
 ```bash
@@ -51,7 +57,16 @@ oc apply -f kafka-topic-rhel-system-logs.yaml \
   -f kafka-topic-enriched-events.yaml
 ```
 
-`kustomize` / `oc apply -k .` applies **all** resources at once, including topics. That is convenient only after the operator is already installed; otherwise topic CRs sit `NotReady` until the Topic Operator starts. Prefer the staged `oc apply -f` order above on a new cluster.
+`kustomize` / `oc apply -k .` applies **all** resources at once, including topics and the optional advisory Bridge. That is convenient only after the operator is already installed; otherwise topic CRs sit `NotReady` until the Topic Operator starts. Prefer the staged `oc apply -f` order above on a new cluster.
+
+Optional advisory path, after `Kafka` is `Ready`. Procedure: [Automated Remediation](../../docs/optional/automated-remediation.md).
+
+```bash
+oc apply -f kafka-topic-security-advisories.yaml \
+  -f kafka-bridge.yaml \
+  -f kafka-bridge-route.yaml
+oc wait kafkabridge/telemetry-bridge -n logstream-kafka --for=condition=Ready --timeout=300s
+```
 
 ## StorageClass
 

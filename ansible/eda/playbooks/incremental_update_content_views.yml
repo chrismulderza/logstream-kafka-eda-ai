@@ -1,0 +1,89 @@
+---
+# hosts_affected -> content_view_ready, or stop.
+# Incremental-update adds errata to the content views the hosts already use.
+# The new version stays in Library. This playbook does not promote it.
+# There is no incremental-update webhook; the include waits for the Foreman task.
+
+- name: Incremental-update content views that already serve the affected hosts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    satellite_url: ""
+    satellite_username: ""
+    satellite_token: ""
+    satellite_validate_certs: true
+    satellite_errata_types:
+      - security
+    errata: []
+    content_hosts: []
+    repository_id: ""
+    task_id: ""
+    dedupe_key: ""
+  tasks:
+    - name: Require Satellite API settings
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/require_satellite.yml"
+
+    - name: Parse event fields that arrived as text
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/coerce_event_fields.yml"
+
+    - name: Require hosts and errata
+      ansible.builtin.assert:
+        that:
+          - errata is not string
+          - errata | length > 0
+          - content_hosts is not string
+          - content_hosts | length > 0
+        fail_msg: hosts_affected did not include hosts and errata.
+
+    - name: Collect content view ids
+      ansible.builtin.set_fact:
+        content_view_ids: "{{ content_hosts | map(attribute='content_view_id') | map('string') | unique | list }}"
+        updated_content_views: []
+
+    - name: Update one content view
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/update_one_content_view.yml"
+      loop: "{{ content_view_ids }}"
+      loop_control:
+        loop_var: content_view_id
+
+    - name: Stop when every content view already had these errata
+      when: updated_content_views | length == 0
+      block:
+        - name: Record that no version was created
+          ansible.builtin.debug:
+            msg: >-
+              No content view needed a new version. A version that already
+              contains these errata is waiting for promotion, or the errata
+              are already in the host lifecycle environment.
+              Not publishing content_view_ready.
+
+        - name: End the play
+          ansible.builtin.meta: end_play
+
+    - name: Hosts whose content view was updated
+      ansible.builtin.set_fact:
+        published_hosts: >-
+          {{
+            content_hosts
+            | selectattr('content_view_id', 'in', updated_content_views | map(attribute='id') | map('string') | list)
+            | list
+          }}
+
+    - name: Require hosts on the updated content views
+      ansible.builtin.assert:
+        that:
+          - published_hosts | length > 0
+        fail_msg: Content views were updated but no host content_view_id matched. content_view_ready was not published.
+
+    - name: Publish content_view_ready
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/publish_advisory_stage.yml"
+      vars:
+        advisory_message:
+          stage: content_view_ready
+          repository_id: "{{ repository_id }}"
+          task_id: "{{ task_id }}"
+          dedupe_key: "cv-{{ updated_content_views | map(attribute='version_id') | join(',') }}"
+          errata: "{{ errata }}"
+          hosts: "{{ published_hosts }}"
+          content_views: "{{ updated_content_views }}"

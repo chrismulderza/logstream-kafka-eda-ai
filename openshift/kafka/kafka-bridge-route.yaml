@@ -1,0 +1,22 @@
+# Edge Route to the Service the Bridge operator creates
+# (telemetry-bridge-bridge-service, port name rest-api).
+# spec.path /topics is a prefix, so POST /topics/security-advisories is forwarded.
+# /consumers does not match. The Bridge does not check a webhook secret.
+# This Route is the trust boundary.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: telemetry-bridge
+  namespace: logstream-kafka
+spec:
+  path: /topics
+  to:
+    kind: Service
+    name: telemetry-bridge-bridge-service
+    weight: 100
+  port:
+    targetPort: rest-api
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

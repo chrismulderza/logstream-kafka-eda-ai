@@ -1,0 +1,17 @@
+<%#
+  Webhook template for actions.katello.content_view.promote_succeeded.
+  Set the webhook Content-Type to application/vnd.kafka.json.v2+json.
+  Promotion makes errata installable. It does not approve a change window.
+%>
+{
+  "records": [
+    {
+      "value": {
+        "stage": "content_view_promoted",
+        "event_name": <%= @event_name.to_json %>,
+        "task_id": <%= @object.id.to_json %>,
+        "task_input": <%= (@object.respond_to?(:input) ? @object.input : {}).to_json %>
+      }
+    }
+  ]
+}

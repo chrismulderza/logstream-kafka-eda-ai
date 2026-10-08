@@ -1,0 +1,21 @@
+---
+- name: Require the HTTP Bridge URL
+  ansible.builtin.assert:
+    that:
+      - kafka_bridge_url | default('') | length > 0
+    fail_msg: Set kafka_bridge_url to the Bridge Route origin, with no path.
+
+- name: POST the next stage to the HTTP Bridge
+  ansible.builtin.uri:
+    url: "{{ kafka_bridge_url | regex_replace('/$', '') }}/topics/{{ advisory_topic | default('security-advisories') }}"
+    method: POST
+    headers:
+      Content-Type: application/vnd.kafka.json.v2+json
+    body_format: json
+    body:
+      records:
+        - value: "{{ advisory_message }}"
+    status_code: [200]
+    validate_certs: "{{ kafka_bridge_validate_certs | default(true) | bool }}"
+    return_content: true
+    timeout: 60

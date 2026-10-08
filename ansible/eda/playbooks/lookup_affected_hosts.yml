@@ -1,0 +1,118 @@
+---
+# errata_added -> hosts_affected, or stop.
+# Hosts are selected with applicable errata (package installed, erratum in
+# Library). Installable comes later, after promotion into the host lifecycle
+# environment. Library consumers are recorded and left out of the next stage.
+
+- name: Look up content hosts for applicable errata
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    satellite_url: ""
+    satellite_username: ""
+    satellite_token: ""
+    satellite_validate_certs: true
+    satellite_errata_types:
+      - security
+    errata: []
+    repository_id: ""
+    task_id: ""
+    dedupe_key: ""
+  tasks:
+    - name: Require Satellite API settings
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/require_satellite.yml"
+
+    - name: Parse event fields that arrived as text
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/coerce_event_fields.yml"
+
+    - name: Require an errata list
+      ansible.builtin.assert:
+        that:
+          - errata is not string
+          - errata | length > 0
+        fail_msg: errata_added did not include an errata list.
+
+    - name: Reset the host list
+      ansible.builtin.set_fact:
+        raw_applicable_hosts: []
+
+    - name: Look up content hosts for one erratum
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/collect_content_hosts.yml"
+      vars:
+        host_search: applicable_errata = "{{ erratum.errata_id }}"
+      loop: "{{ errata }}"
+      loop_control:
+        loop_var: erratum
+        label: "{{ erratum.errata_id | default('erratum') }}"
+
+    - name: Collect hosts pinned to a content view and a lifecycle environment
+      ansible.builtin.set_fact:
+        affected_hosts: "{{ affected_hosts | default([]) + [host_record] }}"
+      vars:
+        facet: "{{ content_host.content_facet_attributes | default({}) }}"
+        host_record:
+          name: "{{ content_host.name }}"
+          content_view_id: "{{ facet.content_view_id | default(content_host.content_view_id) | default((content_host.content_view | default({})).id) | default('') | string }}"
+          content_view_name: "{{ facet.content_view_name | default(content_host.content_view_name) | default((content_host.content_view | default({})).name) | default('') }}"
+          lifecycle_environment_id: "{{ facet.lifecycle_environment_id | default(content_host.lifecycle_environment_id) | default((content_host.lifecycle_environment | default({})).id) | default('') | string }}"
+          lifecycle_environment_name: "{{ facet.lifecycle_environment_name | default(content_host.lifecycle_environment_name) | default((content_host.lifecycle_environment | default({})).name) | default('') }}"
+      loop: "{{ raw_applicable_hosts }}"
+      loop_control:
+        loop_var: content_host
+        label: "{{ content_host.name | default('host') }}"
+      when:
+        - content_host.name | default('') | length > 0
+        - (facet.content_view_id | default(content_host.content_view_id) | default((content_host.content_view | default({})).id) | default('') | string) | length > 0
+        - (facet.lifecycle_environment_name | default(content_host.lifecycle_environment_name) | default((content_host.lifecycle_environment | default({})).name) | default('')) | length > 0
+        - (facet.lifecycle_environment_name | default(content_host.lifecycle_environment_name) | default((content_host.lifecycle_environment | default({})).name) | default('')) != 'Library'
+        - (facet.content_view_name | default(content_host.content_view_name) | default((content_host.content_view | default({})).name) | default('')) != 'Default Organization View'
+
+    - name: Record hosts that stay in Library
+      ansible.builtin.set_fact:
+        library_hosts: "{{ library_hosts | default([]) + [content_host.name] }}"
+      vars:
+        facet: "{{ content_host.content_facet_attributes | default({}) }}"
+        env_name: "{{ facet.lifecycle_environment_name | default(content_host.lifecycle_environment_name) | default((content_host.lifecycle_environment | default({})).name) | default('') }}"
+        cv_name: "{{ facet.content_view_name | default(content_host.content_view_name) | default((content_host.content_view | default({})).name) | default('') }}"
+        cv_id: "{{ facet.content_view_id | default(content_host.content_view_id) | default((content_host.content_view | default({})).id) | default('') | string }}"
+      loop: "{{ raw_applicable_hosts }}"
+      loop_control:
+        loop_var: content_host
+        label: "{{ content_host.name | default('host') }}"
+      when: >
+        content_host.name | default('') | length > 0 and
+        (
+          cv_id | length == 0 or
+          env_name | length == 0 or
+          env_name == 'Library' or
+          cv_name == 'Default Organization View'
+        )
+
+    - name: Dedupe affected hosts
+      ansible.builtin.set_fact:
+        affected_hosts: "{{ affected_hosts | default([]) | unique(attribute='name') }}"
+
+    - name: Stop when no pinned host is affected
+      when: affected_hosts | length == 0
+      block:
+        - name: Record an empty host lookup
+          ansible.builtin.debug:
+            msg:
+              result: No content host outside Library has these errata applicable.
+              library_hosts: "{{ library_hosts | default([]) | unique }}"
+
+        - name: End the play
+          ansible.builtin.meta: end_play
+
+    - name: Publish hosts_affected
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/publish_advisory_stage.yml"
+      vars:
+        advisory_message:
+          stage: hosts_affected
+          repository_id: "{{ repository_id }}"
+          task_id: "{{ task_id }}"
+          dedupe_key: "{{ dedupe_key | default('hosts-' ~ (affected_hosts | map(attribute='name') | sort | join(','))) }}"
+          errata: "{{ errata }}"
+          hosts: "{{ affected_hosts }}"
+          library_hosts: "{{ library_hosts | default([]) | unique }}"

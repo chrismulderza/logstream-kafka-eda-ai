@@ -1,0 +1,37 @@
+# Activation variables for rulebook-optional-advisories.yml.
+# Copy to a mode-0600 file. Do not commit a real token.
+# This rulebook reads advisory_kafka_group_id, not kafka_group_id.
+
+kafka_host: telemetry-kafka-plain-bootstrap.logstream-kafka.svc
+kafka_port: "9092"
+kafka_security_protocol: PLAINTEXT
+kafka_offset: latest
+advisory_kafka_group_id: ansible-eda-advisories
+
+# Bridge Route origin only. No /topics path. Playbooks append that path.
+kafka_bridge_url: https://telemetry-bridge-logstream-kafka.apps.example.com
+kafka_bridge_validate_certs: true
+
+satellite_url: https://satellite.example.com
+satellite_username: automation
+satellite_token: replace-with-personal-access-token
+satellite_validate_certs: true
+satellite_errata_types:
+  - security
+
+# Ticket POSTs are skipped when these are empty. The jobs still record the payload.
+promote_ticket_url: ""
+change_ticket_url: ""
+
+# change_approved does not call katello_errata_install until this is true
+# and the event (or this file) sets errata_schedule_start.
+allow_errata_schedule: false
+errata_schedule_start: ""
+
+aap_organization: Default
+job_template_lookup_sync_errata: lookup-sync-errata
+job_template_lookup_affected_hosts: lookup-affected-hosts
+job_template_incremental_update: incremental-update-content-views
+job_template_open_promote_ticket: open-promote-ticket
+job_template_open_change_ticket: open-change-ticket
+job_template_schedule_errata: schedule-errata-install

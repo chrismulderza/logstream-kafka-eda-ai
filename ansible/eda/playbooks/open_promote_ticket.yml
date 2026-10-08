@@ -1,0 +1,60 @@
+---
+# content_view_ready opens a promote ticket.
+# Promotion stays a manual Satellite action. This playbook does not call the
+# content-view promote API.
+
+- name: Open a ticket for an operator to promote content view versions
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    promote_ticket_url: ""
+    errata: []
+    content_hosts: []
+    content_views: []
+    dedupe_key: ""
+  tasks:
+    - name: Parse event fields that arrived as text
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/coerce_event_fields.yml"
+
+    - name: Require versions to promote
+      ansible.builtin.assert:
+        that:
+          - content_views is not string
+          - content_views | length > 0
+          - errata is not string
+          - errata | length > 0
+          - content_hosts is not string
+          - content_hosts | length > 0
+        fail_msg: content_view_ready did not include content views, errata, and hosts.
+
+    - name: Build the change-approved body the change system will POST later
+      ansible.builtin.set_fact:
+        ticket:
+          summary: Promote Satellite content views before advisory installation
+          action: promote these content view versions into the listed lifecycle environments
+          dedupe_key: "{{ dedupe_key }}"
+          content_views: "{{ content_views }}"
+          errata: "{{ errata }}"
+          hosts: "{{ content_hosts }}"
+          change_approved_record:
+            stage: change_approved
+            dedupe_key: "{{ dedupe_key }}"
+            errata: "{{ errata }}"
+            hosts: "{{ content_hosts }}"
+            content_views: "{{ content_views }}"
+            errata_schedule_start: ""
+
+    - name: Show the promote ticket
+      ansible.builtin.debug:
+        msg: "{{ ticket }}"
+
+    - name: POST the promote ticket when a URL is set
+      ansible.builtin.uri:
+        url: "{{ promote_ticket_url }}"
+        method: POST
+        body_format: json
+        body: "{{ ticket }}"
+        status_code: [200, 201, 202, 204]
+        timeout: 60
+      when: promote_ticket_url | default('') | length > 0
